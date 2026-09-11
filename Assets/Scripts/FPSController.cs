@@ -75,17 +75,45 @@ public class FPSController : MonoBehaviour
         Cursor.visible = false;
     }
 
+    public bool isControlEnabled = true;
+
     private void Update()
     {
+        // Si los controles están desactivados, cancelamos todo el Update
+        if (!isControlEnabled) return;
+
         HandleMovement();
         HandleLook();
         HandleHeadBob();
         HandleInteraction();
     }
 
+    public void ToggleControls(bool enable)
+    {
+        isControlEnabled = enable;
+
+        if (enable)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+        else
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+
+            velocity = Vector3.zero;
+
+            if (currentInteractable != null)
+            {
+                currentInteractable.OnUnhovered();
+                currentInteractable = null;
+            }
+        }
+    }
+
     private void HandleMovement()
     {
-        // Mantener al jugador pegado al suelo si está aterrizado
         if (controller.isGrounded && velocity.y < 0)
         {
             velocity.y = -2f;
@@ -99,7 +127,6 @@ public class FPSController : MonoBehaviour
 
         controller.Move(moveDir * currentSpeed * Time.deltaTime);
 
-        // Gravedad
         velocity.y += gravity * Time.deltaTime;
         controller.Move(velocity * Time.deltaTime);
     }
@@ -148,6 +175,8 @@ public class FPSController : MonoBehaviour
         }
     }
 
+    private IInteractable currentInteractable; // Guarda el objeto que estamos mirando actualmente
+
     private void HandleInteraction()
     {
         Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
@@ -156,22 +185,36 @@ public class FPSController : MonoBehaviour
         {
             if (hit.collider.CompareTag(interactableTag))
             {
-                // Buscamos CUALQUIER script que implemente IInteractable
                 IInteractable interactable = hit.collider.GetComponent<IInteractable>();
 
                 if (interactable != null)
                 {
+                    // Si cambiamos de un interactuable a otro directamente
+                    if (currentInteractable != null && currentInteractable != interactable)
+                    {
+                        currentInteractable.OnUnhovered();
+                    }
+
+                    currentInteractable = interactable;
+
                     if (interactAction.action.WasPressedThisFrame())
                     {
-                        interactable.OnInteract();
+                        currentInteractable.OnInteract();
                     }
                     else
                     {
-                        interactable.OnHovered();
+                        currentInteractable.OnHovered();
                     }
-                    return;
+
+                    return; // Salimos de la función porque estamos mirando a un objeto válido
                 }
             }
+        }
+
+        if (currentInteractable != null)
+        {
+            currentInteractable.OnUnhovered(); // Avisamos al objeto de que dejamos de mirarlo
+            currentInteractable = null;        // Limpiamos la referencia
         }
     }
 
