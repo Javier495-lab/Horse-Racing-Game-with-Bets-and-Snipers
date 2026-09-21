@@ -13,7 +13,7 @@ public class BettingHouseUI : MonoBehaviour
         [Range(0.01f, 1f)] public float winProbability = 0.125f;
         public float currentBet = 0f;
 
-        [Header("Referencias UI")]
+        [Header("Referencias UI Locales")]
         public GameObject panelRoot;
         public TextMeshProUGUI infoText;
         public TextMeshProUGUI betText;
@@ -25,14 +25,12 @@ public class BettingHouseUI : MonoBehaviour
         [HideInInspector] public float mult1st, mult2nd, mult3rd;
     }
 
-    [Header("Configuración de esta Casa de Apuestas")]
-    public string houseName = "Casa VIP";
-    [Tooltip("Cantidad de dinero que se suma/resta en cada clic (ej: 100, 500)")]
+    [Header("Configuración de esta Casa")]
+    public string houseName = "Casa de Apuestas";
     public float betStep = 100f;
-    [Tooltip("Cantidad máxima de dinero que se permite apostar en total en esta casa")]
     public float maxBetLimit = 5000f;
 
-    [Header("Configuración de Pagos Top 3")]
+    [Header("Multiplicadores")]
     public float factor1st = 1.0f;
     public float factor2nd = 0.5f;
     public float factor3rd = 0.25f;
@@ -40,7 +38,7 @@ public class BettingHouseUI : MonoBehaviour
     [Header("Lista de 8 Caballos")]
     public List<HorseUIElement> horses = new List<HorseUIElement>(8);
 
-    [Header("Botones y Textos UI")]
+    [Header("UI General")]
     public Button confirmBetsButton;
     public TextMeshProUGUI statusMessageText;
 
@@ -54,34 +52,42 @@ public class BettingHouseUI : MonoBehaviour
         UpdateAllUI();
     }
 
-    private void SetupUIEvents()
+    public void SetupUIEvents()
     {
         for (int i = 0; i < horses.Count; i++)
         {
             int index = i;
 
             if (horses[i].selectButton != null)
+            {
+                horses[i].selectButton.onClick.RemoveAllListeners();
                 horses[i].selectButton.onClick.AddListener(() => SelectHorse(index));
+            }
 
             if (horses[i].plusButton != null)
             {
+                horses[i].plusButton.onClick.RemoveAllListeners();
                 horses[i].plusButton.onClick.AddListener(() => ChangeBet(index, betStep));
-                // Actualizar texto del botón a +100, +500, etc.
+
                 TextMeshProUGUI btnText = horses[i].plusButton.GetComponentInChildren<TextMeshProUGUI>();
                 if (btnText != null) btnText.text = $"+{betStep}";
             }
 
             if (horses[i].minusButton != null)
             {
+                horses[i].minusButton.onClick.RemoveAllListeners();
                 horses[i].minusButton.onClick.AddListener(() => ChangeBet(index, -betStep));
-                // Actualizar texto del botón a -100, -500, etc.
+
                 TextMeshProUGUI btnText = horses[i].minusButton.GetComponentInChildren<TextMeshProUGUI>();
                 if (btnText != null) btnText.text = $"-{betStep}";
             }
         }
 
         if (confirmBetsButton != null)
+        {
+            confirmBetsButton.onClick.RemoveAllListeners();
             confirmBetsButton.onClick.AddListener(ConfirmBets);
+        }
     }
 
     public void RandomizeInitialProbabilities()
@@ -118,35 +124,34 @@ public class BettingHouseUI : MonoBehaviour
 
     public void SelectHorse(int index)
     {
-        if (GlobalBettingManager.Instance.hasActiveBet) return;
+        if (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.hasActiveBet) return;
         selectedHorseIndex = index;
         UpdateControlsVisibility();
     }
 
     public void ChangeBet(int index, float amount)
     {
-        if (GlobalBettingManager.Instance.hasActiveBet) return;
+        if (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.hasActiveBet) return;
 
         HorseUIElement horse = horses[index];
         float currentTotalHouseBets = GetTotalBetsAmount();
 
         if (amount > 0)
         {
-            // 1. Validar límite máximo de la casa
             if (currentTotalHouseBets + amount > maxBetLimit)
             {
-                SetStatus($"¡Límite máximo de apuesta para esta casa alcanzado ({maxBetLimit}$)! ");
+                SetStatus($"¡Límite máximo alcanzado ({maxBetLimit}$)! ");
                 return;
             }
 
-            // 2. Validar dinero global disponible
-            if (GlobalBettingManager.Instance.playerMoney - currentTotalHouseBets >= amount)
+            if (GlobalBettingManager.Instance != null &&
+                (GlobalBettingManager.Instance.playerMoney - currentTotalHouseBets >= amount))
             {
                 horse.currentBet += amount;
             }
             else
             {
-                SetStatus("¡No tienes suficiente dinero global disponible!");
+                SetStatus("¡No tienes suficiente dinero global!");
             }
         }
         else if (amount < 0)
@@ -173,22 +178,33 @@ public class BettingHouseUI : MonoBehaviour
             return;
         }
 
-        // Llamar al Manager Central para fijar la apuesta activa y bloquear todo
         bool success = GlobalBettingManager.Instance.ConfirmBetFromHouse(this, total);
 
         if (success)
         {
-            SetStatus($"¡Apuesta de {total}$ confirmada! Todas las casas han cerrado apuestas para esta carrera.");
+            SetStatus($"¡Apuesta de {total}$ confirmada!");
             selectedHorseIndex = -1;
             UpdateAllUI();
 
-            // Cerrar o desactivar interfaz activa si fuera necesario
             BetScreen screen = GetComponentInParent<BetScreen>();
             if (screen != null)
             {
                 screen.OnReturn();
             }
         }
+    }
+
+    public void DisableAllButtons()
+    {
+        foreach (var h in horses)
+        {
+            if (h.selectButton != null) h.selectButton.interactable = false;
+            if (h.plusButton != null) h.plusButton.interactable = false;
+            if (h.minusButton != null) h.minusButton.interactable = false;
+            if (h.controlsGroup != null) h.controlsGroup.SetActive(false);
+        }
+
+        if (confirmBetsButton != null) confirmBetsButton.interactable = false;
     }
 
     public void UpdateAllUI()
@@ -215,14 +231,14 @@ public class BettingHouseUI : MonoBehaviour
         if (confirmBetsButton != null)
         {
             bool hasBet = GetTotalBetsAmount() > 0;
-            bool isLocked = GlobalBettingManager.Instance.hasActiveBet;
+            bool isLocked = GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.hasActiveBet;
             confirmBetsButton.interactable = hasBet && !isLocked;
         }
     }
 
     private void UpdateControlsVisibility()
     {
-        bool isLocked = GlobalBettingManager.Instance.hasActiveBet;
+        bool isLocked = GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.hasActiveBet;
         for (int i = 0; i < horses.Count; i++)
         {
             if (horses[i].controlsGroup != null)

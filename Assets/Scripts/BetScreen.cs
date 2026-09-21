@@ -4,28 +4,44 @@ using UnityEngine.UI;
 
 public class BetScreen : MonoBehaviour, IInteractable
 {
-    [Header("Referencias de la Pantalla")]
     private Camera screenCamera;
     private Outline outline;
-    [SerializeField] private FPSController player;
-    [SerializeField] private GameObject bettingCanvas;      // Canvas de esta terminal
-    [SerializeField] private BettingHouseUI bettingHouseUI; // Script de lógica de esta casa
+    private Canvas canvas;
+    private GraphicRaycaster graphicRaycaster;
+    private BettingHouseUI bettingHouseUI;
+    private GameObject bettingCanvas;
 
-    [Header("UI Controls")]
+    [SerializeField] private FPSController player;
     public Button returnButton;
 
-    [Header("Estado de Bloqueo")]
     public bool isLocked = false;
 
-    void Start()
+    private void Awake()
     {
-        screenCamera = GetComponentInChildren<Camera>();
+        // 🔧 FORZAR AUTO-RESOLUCIÓN LOCAL
+        screenCamera = GetComponentInChildren<Camera>(true);
         outline = GetComponent<Outline>();
+        canvas = GetComponentInChildren<Canvas>(true);
+        graphicRaycaster = GetComponentInChildren<GraphicRaycaster>(true);
+        bettingHouseUI = GetComponentInChildren<BettingHouseUI>(true);
 
+        if (canvas != null)
+        {
+            bettingCanvas = canvas.gameObject;
+            if (screenCamera != null)
+            {
+                // Asigna explícitamente la cámara local al Canvas para evitar interferencias de raycast
+                canvas.worldCamera = screenCamera;
+            }
+        }
+    }
+
+    private void Start()
+    {
+        if (graphicRaycaster != null) graphicRaycaster.enabled = false;
         if (screenCamera != null) screenCamera.enabled = false;
         if (outline != null) outline.enabled = false;
 
-        // Auto-registramos esta pantalla en el Manager Central
         if (GlobalBettingManager.Instance != null)
         {
             if (!GlobalBettingManager.Instance.allBetScreens.Contains(this))
@@ -34,7 +50,6 @@ public class BetScreen : MonoBehaviour, IInteractable
             }
         }
 
-        // Asignar el botón de volver automáticamente
         if (returnButton != null)
         {
             returnButton.onClick.RemoveAllListeners();
@@ -42,15 +57,14 @@ public class BetScreen : MonoBehaviour, IInteractable
         }
     }
 
-    /// <summary>
-    /// Bloquea o desbloquea esta pantalla cuando se confirma una apuesta global.
-    /// </summary>
     public void SetInteractionLocked(bool locked)
     {
         isLocked = locked;
 
-        // Si se confirma la apuesta mientras el jugador tenía la pantalla abierta, la cerramos
-        if (isLocked && screenCamera != null && screenCamera.enabled)
+        if (graphicRaycaster != null) graphicRaycaster.enabled = false;
+        if (bettingHouseUI != null) bettingHouseUI.DisableAllButtons();
+
+        if (screenCamera != null && screenCamera.enabled)
         {
             OnReturn();
         }
@@ -58,25 +72,19 @@ public class BetScreen : MonoBehaviour, IInteractable
 
     public void OnHovered()
     {
-        // Si ya hay una apuesta confirmada, no mostramos el outline de interacción
         if (isLocked || (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.hasActiveBet))
-        {
             return;
-        }
 
         if (outline != null) outline.enabled = true;
-        Debug.Log("Mirando a la terminal de apuestas. Texto: [Pulsa E para apostar]");
     }
 
     public void OnUnhovered()
     {
         if (outline != null) outline.enabled = false;
-        Debug.Log("Dejando de mirar la terminal de apuestas.");
     }
 
     public void OnInteract()
     {
-        // Cancelar interacción si está bloqueada o ya se apostó en otra casa
         if (isLocked || (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.hasActiveBet))
         {
             Debug.Log("Las apuestas para esta carrera están cerradas.");
@@ -87,6 +95,7 @@ public class BetScreen : MonoBehaviour, IInteractable
 
         if (screenCamera != null) screenCamera.enabled = true;
         if (bettingCanvas != null) bettingCanvas.SetActive(true);
+        if (graphicRaycaster != null) graphicRaycaster.enabled = true;
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
@@ -97,8 +106,8 @@ public class BetScreen : MonoBehaviour, IInteractable
     public void OnReturn()
     {
         if (screenCamera != null) screenCamera.enabled = false;
-        if (bettingCanvas != null) bettingCanvas.SetActive(false);
+        if (graphicRaycaster != null) graphicRaycaster.enabled = false;
 
-        if (player != null) player.ToggleControls(true); // Reactiva movimiento, cámara y bloquea cursor
+        if (player != null) player.ToggleControls(true);
     }
 }
