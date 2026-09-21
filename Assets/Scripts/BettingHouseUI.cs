@@ -27,6 +27,7 @@ public class BettingHouseUI : MonoBehaviour
 
     [Header("Configuración de esta Casa")]
     public string houseName = "Casa de Apuestas";
+    public string trackSceneName = "Track_Casa1"; // 👈 Nombre de la escena vinculada
     public float betStep = 100f;
     public float maxBetLimit = 5000f;
 

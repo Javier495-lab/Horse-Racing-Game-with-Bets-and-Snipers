@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -14,11 +13,10 @@ public class BetScreen : MonoBehaviour, IInteractable
     [SerializeField] private FPSController player;
     public Button returnButton;
 
-    public bool isLocked = false;
+    public bool isLocked { get; private set; } = false;
 
     private void Awake()
     {
-        // 🔧 FORZAR AUTO-RESOLUCIÓN LOCAL
         screenCamera = GetComponentInChildren<Camera>(true);
         outline = GetComponent<Outline>();
         canvas = GetComponentInChildren<Canvas>(true);
@@ -30,7 +28,6 @@ public class BetScreen : MonoBehaviour, IInteractable
             bettingCanvas = canvas.gameObject;
             if (screenCamera != null)
             {
-                // Asigna explícitamente la cámara local al Canvas para evitar interferencias de raycast
                 canvas.worldCamera = screenCamera;
             }
         }
@@ -42,12 +39,9 @@ public class BetScreen : MonoBehaviour, IInteractable
         if (screenCamera != null) screenCamera.enabled = false;
         if (outline != null) outline.enabled = false;
 
-        if (GlobalBettingManager.Instance != null)
+        if (GlobalBettingManager.Instance != null && !GlobalBettingManager.Instance.allBetScreens.Contains(this))
         {
-            if (!GlobalBettingManager.Instance.allBetScreens.Contains(this))
-            {
-                GlobalBettingManager.Instance.allBetScreens.Add(this);
-            }
+            GlobalBettingManager.Instance.allBetScreens.Add(this);
         }
 
         if (returnButton != null)
@@ -86,9 +80,11 @@ public class BetScreen : MonoBehaviour, IInteractable
     public void OnInteract()
     {
         if (isLocked || (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.hasActiveBet))
-        {
-            Debug.Log("Las apuestas para esta carrera están cerradas.");
             return;
+
+        if (GlobalBettingManager.Instance != null)
+        {
+            GlobalBettingManager.Instance.DisableAllRaycasters();
         }
 
         if (player != null) player.ToggleControls(false);
