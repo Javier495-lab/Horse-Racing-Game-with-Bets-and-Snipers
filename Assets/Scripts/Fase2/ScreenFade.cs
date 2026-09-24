@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using UnityEngine.SceneManagement;
 
 public class ScreenFade : MonoBehaviour
 {
@@ -18,7 +19,6 @@ public class ScreenFade : MonoBehaviour
             if (canvasGroup == null)
                 canvasGroup = GetComponent<CanvasGroup>();
 
-            // Estado inicial: totalmente transparente y sin interceptar clics
             canvasGroup.alpha = 0f;
             canvasGroup.blocksRaycasts = false;
         }
@@ -26,6 +26,40 @@ public class ScreenFade : MonoBehaviour
         {
             Destroy(gameObject);
         }
+    }
+
+    /// <summary>
+    /// Método público para cambiar de escena con fundido completo desde cualquier script.
+    /// </summary>
+    public void LoadSceneWithFade(string sceneName, float duration = -1f)
+    {
+        StartCoroutine(FadeAndLoadSceneRoutine(sceneName, duration));
+    }
+
+    private IEnumerator FadeAndLoadSceneRoutine(string sceneName, float duration)
+    {
+        // 1. Fundido a negro
+        yield return StartCoroutine(FadeOutCoroutine(duration));
+
+        // 2. Carga asíncrona de la escena
+        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneName);
+        asyncLoad.allowSceneActivation = false;
+
+        while (asyncLoad.progress < 0.9f)
+        {
+            yield return null;
+        }
+
+        // Activación de la nueva escena (la escena anterior se destruye aquí)
+        asyncLoad.allowSceneActivation = true;
+
+        while (!asyncLoad.isDone)
+        {
+            yield return null;
+        }
+
+        // 3. Aclarar pantalla (¡Se ejecuta porque ScreenFader sigue vivo!)
+        yield return StartCoroutine(FadeInCoroutine(duration));
     }
 
     public IEnumerator FadeOutCoroutine(float duration = -1f)

@@ -1,6 +1,4 @@
 using UnityEngine;
-using System.Collections;
-using UnityEngine.SceneManagement;
 
 public class CarInteractable : MonoBehaviour, IInteractable
 {
@@ -52,43 +50,10 @@ public class CarInteractable : MonoBehaviour, IInteractable
             return;
         }
 
-        StartCoroutine(LoadTrackSceneAsync(targetScene));
-    }
-
-    private IEnumerator LoadTrackSceneAsync(string sceneName)
-    {
         isLoading = true;
         if (outline != null) outline.enabled = false;
 
-        // 1. Fundido a negro (ScreenFader es hijo persistente)
-        if (ScreenFade.Instance != null)
-        {
-            yield return StartCoroutine(ScreenFade.Instance.FadeOutCoroutine());
-        }
-
-        // 2. Carga asíncrona en segundo plano
-        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneName);
-        asyncLoad.allowSceneActivation = false;
-
-        while (asyncLoad.progress < 0.9f)
-        {
-            yield return null;
-        }
-
-        // 3. Activación de la nueva escena de la pista
-        asyncLoad.allowSceneActivation = true;
-
-        while (!asyncLoad.isDone)
-        {
-            yield return null;
-        }
-
-        // 4. Aclarar pantalla tras completar el montaje de la pista
-        if (ScreenFade.Instance != null)
-        {
-            yield return StartCoroutine(ScreenFade.Instance.FadeInCoroutine());
-        }
-
-        isLoading = false;
+        // 🚀 Delegamos la carga y el doble fundido al objeto persistente
+        ScreenFade.Instance.LoadSceneWithFade(targetScene);
     }
 }
