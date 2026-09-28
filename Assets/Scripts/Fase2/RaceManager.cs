@@ -1,109 +1,171 @@
-using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using TMPro;
+using UnityEngine;
+using UnityEngine.Splines;
 
 public class RaceManager : MonoBehaviour
 {
     public static RaceManager Instance { get; private set; }
 
-    [Header("Configuración de Pista")]
-    public float trackLength = 200f;
-    public List<HorseRunner> horses = new List<HorseRunner>(8);
+    [Header("Configuración de Carrera")]
+    public List<HorseRunner> runners = new List<HorseRunner>();
+    public Transform finishLineTransform;
 
-    [Header("Condicionales de Carrera")]
-    [Range(0f, 100f)] public float fallProbabilityPercentage = 7f;
+    [Header("Posiciones de Salida")]
+    public List<Transform> spawnPoints = new List<Transform>();
+
+    [Header("UI de Carrera")]
+    public TextMeshProUGUI countdownText;
+    public TextMeshProUGUI raceStatusText;
+    public GameObject resultsPanel;
+    public TextMeshProUGUI podiumText;
 
     [Header("Estado")]
     public bool isRaceActive = false;
-    public bool isRaceFinished = false;
+    private List<HorseRunner> finishedOrder = new List<HorseRunner>();
 
     private void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
     }
 
     private void Start()
     {
-        PreSimulateRace();
+        InitializeRace();
     }
 
-    private void PreSimulateRace()
+    public void InitializeRace()
     {
-        List<BettingHouseUI.HorseUIElement> betHorses = null;
-        if (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.activeBettingHouse != null)
+        isRaceActive = false;
+        finishedOrder.Clear();
+
+        if (resultsPanel != null) resultsPanel.SetActive(false);
+
+        // 1. Colocar cada caballo en su SpawnPoint y resetear su estado
+        for (int i = 0; i < runners.Count; i++)
         {
-            betHorses = GlobalBettingManager.Instance.activeBettingHouse.horses;
-        }
-
-        List<HorseSimData> simDataList = new List<HorseSimData>();
-
-        for (int i = 0; i < horses.Count; i++)
-        {
-            float prob = (betHorses != null && i < betHorses.Count) ? betHorses[i].winProbability : 0.125f;
-            string hName = (betHorses != null && i < betHorses.Count) ? betHorses[i].horseName : $"Caballo {i + 1}";
-
-            bool willFall = Random.Range(0f, 100f) <= fallProbabilityPercentage;
-            float fallNormalizedPos = willFall ? Random.Range(0.25f, 0.75f) : 1f;
-
-            float performanceScore = willFall ? -100f : (prob * Random.Range(0.8f, 1.2f));
-
-            simDataList.Add(new HorseSimData
+            if (i < spawnPoints.Count && spawnPoints[i] != null)
             {
-                horseIndex = i,
-                horseName = hName,
-                probability = prob,
-                score = performanceScore,
-                willFall = willFall,
-                fallNormalizedPosition = fallNormalizedPos
-            });
+                runners[i].transform.position = spawnPoints[i].position;
+                runners[i].transform.rotation = spawnPoints[i].rotation;
+            }
+
+            runners[i].ResetRunner(); // Resetea distancia, caídas, etc.
         }
 
-        var rankedList = simDataList.OrderByDescending(x => x.score).ToList();
-
-        for (int rank = 0; rank < rankedList.Count; rank++)
+        // 2. Transferir datos de la casa de apuestas
+        if (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.currentHouse != null)
         {
-            var data = rankedList[rank];
-            HorseRunner runner = horses[data.horseIndex];
-
-            runner.Initialize(
-                data.horseName,
-                targetRank: rank + 1,
-                willFall: data.willFall,
-                fallProgress: data.fallNormalizedPosition,
-                trackLength: trackLength
-            );
+            var house = GlobalBettingManager.Instance.currentHouse;
+            for (int i = 0; i < runners.Count && i < house.horses.Count; i++)
+            {
+                runners[i].SetupHorseData(house.horses[i]);
+            }
         }
+
+        StartCoroutine(StartCountdownRoutine());
+    }
+
+    private IEnumerator StartCountdownRoutine()
+    {
+        int timer = 3;
+        while (timer > 0)
+        {
+            if (countdownText != null) countdownText.text = timer.ToString();
+            yield return new WaitForSeconds(1f);
+            timer--;
+        }
+
+        if (countdownText != null) countdownText.text = "¡GO!";
+        StartRace();
+
+        yield return new WaitForSeconds(1f);
+        if (countdownText != null) countdownText.gameObject.SetActive(false);
     }
 
     public void StartRace()
     {
-        if (isRaceActive) return;
         isRaceActive = true;
-
-        foreach (var horse in horses)
+        foreach (var runner in runners)
         {
-            horse.StartRunning();
+            runner.StartRunning();
+        }
+
+        if (raceStatusText != null) raceStatusText.text = "¡Carrera en curso!";
+    }
+
+    /// <summary>
+    /// Llamado desde HorseRunner cuando cruza la meta.
+    /// </summary>
+    public void OnHorseFinished(HorseRunner runner)
+    {
+        if (!finishedOrder.Contains(runner))
+        {
+            finishedOrder.Add(runner);
+            Debug.Log($"¡{runner.horseName} ha cruzado la meta en la posición #{finishedOrder.Count}!");
+
+            if (raceStatusText != null)
+                raceStatusText.text = $"Último en llegar: {runner.horseName} (#{finishedOrder.Count})";
+
+            // Si todos los caballos que no cayeron terminaron
+            CheckRaceCompletion();
         }
     }
 
-    public void OnHorseFinished(HorseRunner horse)
+    public void CheckRaceCompletion()
     {
-        bool allDone = horses.All(h => h.hasFinished || h.hasFallen);
-        if (allDone && !isRaceFinished)
+        int activeOrFinished = 0;
+        foreach (var r in runners)
         {
-            isRaceFinished = true;
-            Debug.Log("🎉 ¡Carrera finalizada!");
+            if (r.hasFinished || r.hasFallen) activeOrFinished++;
+        }
+
+        if (activeOrFinished >= runners.Count && isRaceActive)
+        {
+            EndRace();
         }
     }
 
-    private class HorseSimData
+    private void EndRace()
     {
-        public int horseIndex;
-        public string horseName;
-        public float probability;
-        public float score;
-        public bool willFall;
-        public float fallNormalizedPosition;
+        isRaceActive = false;
+        if (raceStatusText != null) raceStatusText.text = "¡Carrera finalizada!";
+
+        ShowResults();
+    }
+
+    private void ShowResults()
+    {
+        if (resultsPanel != null) resultsPanel.SetActive(true);
+
+        string text = "<b>--- PODIO ---</b>\n\n";
+        for (int i = 0; i < finishedOrder.Count; i++)
+        {
+            string medal = i switch
+            {
+                0 => "🥇 1º",
+                1 => "🥈 2º",
+                2 => "🥉 3º",
+                _ => $"{i + 1}º"
+            };
+            text += $"{medal}: {finishedOrder[i].horseName}\n";
+        }
+
+        if (podiumText != null) podiumText.text = text;
+
+        // Notificar resultados al manager global de apuestas si existe
+        if (GlobalBettingManager.Instance != null)
+        {
+            GlobalBettingManager.Instance.ProcessRaceResults(finishedOrder);
+        }
     }
 }

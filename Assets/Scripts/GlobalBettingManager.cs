@@ -9,13 +9,22 @@ public class GlobalBettingManager : MonoBehaviour
 
     [Header("Economía Global")]
     public float playerMoney = 1000f;
-    public TextMeshProUGUI globalMoneyText;
 
-    [Header("Estado Global de Apuestas")]
+    [Header("Estado de las Apuestas")]
     public bool hasActiveBet = false;
-    public BettingHouseUI activeBettingHouse = null;
+    public float activeBetAmount = 0f;
 
-    [Header("Terminales Registradas en la Escena Actual")]
+    // Referencia a la casa de apuestas activa
+    public BettingHouseUI activeBettingHouse;
+
+    // Alias para compatibilidad con RaceManager y otros scripts
+    public BettingHouseUI currentHouse
+    {
+        get => activeBettingHouse;
+        set => activeBettingHouse = value;
+    }
+
+    [Header("Registro de Pantallas de UI")]
     public List<BetScreen> allBetScreens = new List<BetScreen>();
 
     private void Awake()
@@ -23,7 +32,6 @@ public class GlobalBettingManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
-            // Al hacer persistente la raíz, ScreenFader (hijo) también se vuelve persistente
             DontDestroyOnLoad(gameObject);
         }
         else
@@ -32,60 +40,119 @@ public class GlobalBettingManager : MonoBehaviour
         }
     }
 
-    private void Start()
+    /// <summary>
+    /// Registra una pantalla de apuestas en la lista global.
+    /// </summary>
+    public void RegisterBetScreen(BetScreen screen)
     {
-        UpdateGlobalMoneyUI();
+        if (screen != null && !allBetScreens.Contains(screen))
+        {
+            allBetScreens.Add(screen);
+        }
     }
 
-    public void UpdateGlobalMoneyUI()
-    {
-        if (globalMoneyText != null)
-            globalMoneyText.text = $"Dinero Global: {playerMoney:F0} $";
-    }
-
-    public bool ConfirmBetFromHouse(BettingHouseUI house, float totalBetAmount)
-    {
-        if (hasActiveBet || totalBetAmount > playerMoney)
-            return false;
-
-        playerMoney -= totalBetAmount;
-        hasActiveBet = true;
-        activeBettingHouse = house;
-
-        UpdateGlobalMoneyUI();
-        LockAllBetScreens();
-
-        return true;
-    }
-
+    /// <summary>
+    /// Desactiva el GraphicRaycaster de todas las pantallas de apuestas registradas.
+    /// </summary>
     public void DisableAllRaycasters()
     {
-        foreach (var screen in allBetScreens)
+        for (int i = allBetScreens.Count - 1; i >= 0; i--)
         {
-            if (screen != null)
+            if (allBetScreens[i] == null)
             {
-                var gr = screen.GetComponentInChildren<UnityEngine.UI.GraphicRaycaster>(true);
-                if (gr != null) gr.enabled = false;
+                allBetScreens.RemoveAt(i);
+                continue;
+            }
+
+            // Desactiva el raycaster si existe
+            if (allBetScreens[i].graphicRaycaster != null)
+            {
+                allBetScreens[i].graphicRaycaster.enabled = false;
             }
         }
     }
 
-    public void LockAllBetScreens()
+    /// <summary>
+    /// Confirmación de apuesta enviada desde BettingHouseUI.
+    /// </summary>
+    public bool ConfirmBetFromHouse(BettingHouseUI house, float totalAmount)
     {
-        foreach (var screen in allBetScreens)
+        if (hasActiveBet)
         {
-            if (screen != null) screen.SetInteractionLocked(true);
+            Debug.LogWarning("[GlobalBettingManager] Ya hay una apuesta activa.");
+            return false;
         }
+
+        if (playerMoney < totalAmount)
+        {
+            Debug.LogWarning("[GlobalBettingManager] Dinero insuficiente.");
+            return false;
+        }
+
+        playerMoney -= totalAmount;
+        activeBetAmount = totalAmount;
+        activeBettingHouse = house;
+        hasActiveBet = true;
+
+        Debug.Log($"[GlobalBettingManager] Apuesta de {totalAmount}$ confirmada en {house.houseName}. Dinero restante: {playerMoney}$");
+        return true;
     }
 
-    public void UnlockAllBetScreens()
+    /// <summary>
+    /// Procesa el resultado de la carrera cuando RaceManager notifica el podio.
+    /// </summary>
+    public void ProcessRaceResults(List<HorseRunner> finishedOrder)
     {
-        hasActiveBet = false;
-        activeBettingHouse = null;
-
-        foreach (var screen in allBetScreens)
+        if (!hasActiveBet || activeBettingHouse == null)
         {
-            if (screen != null) screen.SetInteractionLocked(false);
+            Debug.LogWarning("[GlobalBettingManager] Se intentó procesar la carrera pero no había apuesta activa.");
+            return;
         }
+
+        float totalEarnings = 0f;
+
+        for (int i = 0; i < Mathf.Min(3, finishedOrder.Count); i++)
+        {
+            HorseRunner runner = finishedOrder[i];
+            HorseUIElement horseData = activeBettingHouse.horses.Find(h => h.horseName == runner.horseName);
+
+            if (horseData != null && horseData.currentBet > 0)
+            {
+                float multiplier = i switch
+                {
+                    0 => horseData.mult1st,
+                    1 => horseData.mult2nd,
+                    2 => horseData.mult3rd,
+                    _ => 0f
+                };
+
+                float payout = horseData.currentBet * multiplier;
+                totalEarnings += payout;
+
+                Debug.Log($"[GlobalBettingManager] ¡{horseData.horseName} quedó en #{i + 1}! Apuesta: {horseData.currentBet}$ x {multiplier:F2}x = {payout}$");
+            }
+        }
+
+        playerMoney += totalEarnings;
+        Debug.Log($"[GlobalBettingManager] Fin de carrera. Ganancias totales: {totalEarnings}$. Nuevo total: {playerMoney}$");
+
+        ResetBetsState();
+    }
+
+    /// <summary>
+    /// Resetea el estado de las apuestas.
+    /// </summary>
+    public void ResetBetsState()
+    {
+        if (activeBettingHouse != null)
+        {
+            foreach (var horse in activeBettingHouse.horses)
+            {
+                horse.currentBet = 0f;
+            }
+        }
+
+        hasActiveBet = false;
+        activeBetAmount = 0f;
     }
 }

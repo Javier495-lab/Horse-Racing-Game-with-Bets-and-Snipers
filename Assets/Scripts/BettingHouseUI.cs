@@ -4,30 +4,41 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
+[Serializable]
+public class HorseUIElement
+{
+    [Header("Datos del Caballo")]
+    public string horseName = "Caballo";
+    [Range(0.01f, 1f)] public float winProbability = 0.125f; // Probabilidad base (12.5%)
+    public float currentBet = 0f;
+
+    [Header("Modificadores Individuales")]
+    public float winProbabilityModifier = 0f;  // ej. +0.05f (+5%)
+    public float fallProbabilityModifier = 0f; // ej. -3.0f (-3%)
+
+    [Header("Referencias UI Locales")]
+    public GameObject panelRoot;
+    public TextMeshProUGUI infoText;      // Muestra: Nombre, %, Cuotas (1º, 2º, 3º)
+    public TextMeshProUGUI betText;       // Muestra: "Apuesta: 100$"
+    public Button selectButton;          // Botón principal del caballo
+    public GameObject controlsGroup;     // Contenedor de los botones + / -
+    public Button plusButton;
+    public Button minusButton;
+
+    // Multiplicadores calculados
+    [HideInInspector] public float mult1st;
+    [HideInInspector] public float mult2nd;
+    [HideInInspector] public float mult3rd;
+}
+
+// ============================================================================
+// CLASE PRINCIPAL DE LA CASA DE APUESTAS
+// ============================================================================
 public class BettingHouseUI : MonoBehaviour
 {
-    [System.Serializable]
-    public class HorseUIElement
-    {
-        public string horseName = "Caballo";
-        [Range(0.01f, 1f)] public float winProbability = 0.125f;
-        public float currentBet = 0f;
-
-        [Header("Referencias UI Locales")]
-        public GameObject panelRoot;
-        public TextMeshProUGUI infoText;
-        public TextMeshProUGUI betText;
-        public Button selectButton;
-        public GameObject controlsGroup;
-        public Button plusButton;
-        public Button minusButton;
-
-        [HideInInspector] public float mult1st, mult2nd, mult3rd;
-    }
-
     [Header("Configuración de esta Casa")]
     public string houseName = "Casa de Apuestas";
-    public string trackSceneName = "Track_Casa1"; // 👈 Nombre de la escena vinculada
+    public string trackSceneName = "Track_Casa1"; // Escena vinculada
     public float betStep = 100f;
     public float maxBetLimit = 5000f;
 
@@ -179,7 +190,7 @@ public class BettingHouseUI : MonoBehaviour
             return;
         }
 
-        bool success = GlobalBettingManager.Instance.ConfirmBetFromHouse(this, total);
+        bool success = GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.ConfirmBetFromHouse(this, total);
 
         if (success)
         {

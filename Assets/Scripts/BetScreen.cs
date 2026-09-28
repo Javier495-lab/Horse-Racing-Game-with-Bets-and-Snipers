@@ -6,7 +6,7 @@ public class BetScreen : MonoBehaviour, IInteractable
     private Camera screenCamera;
     private Outline outline;
     private Canvas canvas;
-    private GraphicRaycaster graphicRaycaster;
+    public GraphicRaycaster graphicRaycaster;
     private BettingHouseUI bettingHouseUI;
     private GameObject bettingCanvas;
 
@@ -105,5 +105,14 @@ public class BetScreen : MonoBehaviour, IInteractable
         if (graphicRaycaster != null) graphicRaycaster.enabled = false;
 
         if (player != null) player.ToggleControls(true);
+    }
+
+    private void OnDestroy()
+    {
+        // Limpia la referencia cuando se destruye o cambia la escena
+        if (GlobalBettingManager.Instance != null)
+        {
+            GlobalBettingManager.Instance.allBetScreens.Remove(this);
+        }
     }
 }
