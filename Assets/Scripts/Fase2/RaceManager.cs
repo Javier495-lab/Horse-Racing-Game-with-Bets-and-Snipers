@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
-using UnityEngine.Splines;
 
 public class RaceManager : MonoBehaviour
 {
@@ -25,6 +24,9 @@ public class RaceManager : MonoBehaviour
     [Header("Estado")]
     public bool isRaceActive = false;
     private List<HorseRunner> finishedOrder = new List<HorseRunner>();
+
+    [Header("Ruta NavMesh")]
+    public List<Transform> circuitWaypoints = new List<Transform>();
 
     private void Awake()
     {
@@ -50,19 +52,21 @@ public class RaceManager : MonoBehaviour
 
         if (resultsPanel != null) resultsPanel.SetActive(false);
 
-        // 1. Colocar cada caballo en su SpawnPoint y resetear su estado
         for (int i = 0; i < runners.Count; i++)
         {
+            // 1. Posicionar en SpawnPoints
             if (i < spawnPoints.Count && spawnPoints[i] != null)
             {
                 runners[i].transform.position = spawnPoints[i].position;
                 runners[i].transform.rotation = spawnPoints[i].rotation;
             }
 
-            runners[i].ResetRunner(); // Resetea distancia, caídas, etc.
+            // 2. Asignar waypoints y resetear
+            runners[i].SetWaypoints(circuitWaypoints);
+            runners[i].ResetRunner();
         }
 
-        // 2. Transferir datos de la casa de apuestas
+        // 3. Cargar probabilidades desde la casa de apuestas
         if (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.currentHouse != null)
         {
             var house = GlobalBettingManager.Instance.currentHouse;

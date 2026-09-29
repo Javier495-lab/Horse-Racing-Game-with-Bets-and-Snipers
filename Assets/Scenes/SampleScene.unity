@@ -11636,6 +11636,7 @@ GameObject:
   - component: {fileID: 919630578}
   - component: {fileID: 919630580}
   - component: {fileID: 919630579}
+  - component: {fileID: 919630581}
   m_Layer: 5
   m_Name: TotalMoneyText
   m_TagString: Untagged
@@ -11762,6 +11763,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 919630577}
   m_CullTransparentMesh: 1
+--- !u!114 &919630581
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 919630577}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 60d4660e914810545bf8170136657f8e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerMoneyUI
+  moneyText: {fileID: 0}
+  prefix: 'Saldo: '
+  suffix: $
 --- !u!43 &925250329
 Mesh:
   m_ObjectHideFlags: 0
@@ -20667,8 +20683,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GlobalBettingManager
   playerMoney: 1000
-  globalMoneyText: {fileID: 919630579}
   hasActiveBet: 0
+  activeBetAmount: 0
   activeBettingHouse: {fileID: 0}
   allBetScreens:
   - {fileID: 605545399}
