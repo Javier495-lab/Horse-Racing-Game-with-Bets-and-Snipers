@@ -38,10 +38,15 @@ public class ScreenFade : MonoBehaviour
 
     private IEnumerator FadeAndLoadSceneRoutine(string sceneName, float duration)
     {
-        // 1. Fundido a negro
+        // 1. Restaurar tiempo y cursor inmediatamente al iniciar el cambio
+        Time.timeScale = 1f;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        // 2. Fundido a negro
         yield return StartCoroutine(FadeOutCoroutine(duration));
 
-        // 2. Carga asíncrona de la escena
+        // 3. Carga asíncrona de la escena
         AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneName);
         asyncLoad.allowSceneActivation = false;
 
@@ -50,7 +55,7 @@ public class ScreenFade : MonoBehaviour
             yield return null;
         }
 
-        // Activación de la nueva escena (la escena anterior se destruye aquí)
+        // Activación de la nueva escena
         asyncLoad.allowSceneActivation = true;
 
         while (!asyncLoad.isDone)
@@ -58,7 +63,7 @@ public class ScreenFade : MonoBehaviour
             yield return null;
         }
 
-        // 3. Aclarar pantalla (¡Se ejecuta porque ScreenFader sigue vivo!)
+        // 4. Aclarar pantalla en la nueva escena
         yield return StartCoroutine(FadeInCoroutine(duration));
     }
 
@@ -70,7 +75,8 @@ public class ScreenFade : MonoBehaviour
         float elapsed = 0f;
         while (elapsed < dur)
         {
-            elapsed += Time.deltaTime;
+            // 👈 Se usa unscaledDeltaTime por si el juego está pausado al pulsar volver
+            elapsed += Time.unscaledDeltaTime;
             canvasGroup.alpha = Mathf.Clamp01(elapsed / dur);
             yield return null;
         }
@@ -85,7 +91,8 @@ public class ScreenFade : MonoBehaviour
         float elapsed = 0f;
         while (elapsed < dur)
         {
-            elapsed += Time.deltaTime;
+            // 👈 Se usa unscaledDeltaTime por consistencia
+            elapsed += Time.unscaledDeltaTime;
             canvasGroup.alpha = Mathf.Clamp01(1f - (elapsed / dur));
             yield return null;
         }

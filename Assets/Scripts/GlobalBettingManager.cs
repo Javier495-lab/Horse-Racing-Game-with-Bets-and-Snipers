@@ -1,7 +1,5 @@
 using System.Collections.Generic;
-using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
 public class GlobalBettingManager : MonoBehaviour
 {
@@ -14,10 +12,18 @@ public class GlobalBettingManager : MonoBehaviour
     public bool hasActiveBet = false;
     public float activeBetAmount = 0f;
 
+    [Header("Últimos Resultados de Carrera (Multiapuesta)")]
+    public float lastRaceTotalBet = 0f;      // Total apostado entre todos los caballos
+    public float lastRaceTotalEarnings = 0f; // Ingresos brutos recuperados del podio
+    public float lastRaceNetProfit = 0f;     // Beneficio neto (Ganancias - Total Apostado)
+    public int lastRaceWinningBetsCount = 0; // Cuántas de las apuestas entraron en podio
+
+    // Diccionario/Estructura interna para recordar cuánto se apostó a cada caballo
+    public Dictionary<string, float> currentBetsPerHorse = new Dictionary<string, float>();
+
     // Referencia a la casa de apuestas activa
     public BettingHouseUI activeBettingHouse;
 
-    // Alias para compatibilidad con RaceManager y otros scripts
     public BettingHouseUI currentHouse
     {
         get => activeBettingHouse;
@@ -40,9 +46,6 @@ public class GlobalBettingManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Registra una pantalla de apuestas en la lista global.
-    /// </summary>
     public void RegisterBetScreen(BetScreen screen)
     {
         if (screen != null && !allBetScreens.Contains(screen))
@@ -51,9 +54,6 @@ public class GlobalBettingManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Desactiva el GraphicRaycaster de todas las pantallas de apuestas registradas.
-    /// </summary>
     public void DisableAllRaycasters()
     {
         for (int i = allBetScreens.Count - 1; i >= 0; i--)
@@ -64,7 +64,6 @@ public class GlobalBettingManager : MonoBehaviour
                 continue;
             }
 
-            // Desactiva el raycaster si existe
             if (allBetScreens[i].graphicRaycaster != null)
             {
                 allBetScreens[i].graphicRaycaster.enabled = false;
@@ -73,7 +72,8 @@ public class GlobalBettingManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Confirmación de apuesta enviada desde BettingHouseUI.
+    /// Confirmación de apuestas enviada desde BettingHouseUI.
+    /// Registra el desglose de dinero apostado por cada caballo individualmente.
     /// </summary>
     public bool ConfirmBetFromHouse(BettingHouseUI house, float totalAmount)
     {
@@ -94,12 +94,23 @@ public class GlobalBettingManager : MonoBehaviour
         activeBettingHouse = house;
         hasActiveBet = true;
 
-        Debug.Log($"[GlobalBettingManager] Apuesta de {totalAmount}$ confirmada en {house.houseName}. Dinero restante: {playerMoney}$");
+        // Guardar apuestas individuales de cada caballo
+        currentBetsPerHorse.Clear();
+        foreach (var h in house.horses)
+        {
+            if (h.currentBet > 0)
+            {
+                currentBetsPerHorse[h.horseName] = h.currentBet;
+                Debug.Log($"[GlobalBettingManager] Registrada apuesta de {h.currentBet}$ a {h.horseName}");
+            }
+        }
+
+        Debug.Log($"[GlobalBettingManager] Apuesta total de {totalAmount}$ confirmada en {house.houseName}. Dinero restante: {playerMoney}$");
         return true;
     }
 
     /// <summary>
-    /// Procesa el resultado de la carrera cuando RaceManager notifica el podio.
+    /// Procesa el resultado de la carrera evaluando todas las apuestas realizadas.
     /// </summary>
     public void ProcessRaceResults(List<HorseRunner> finishedOrder)
     {
@@ -110,11 +121,16 @@ public class GlobalBettingManager : MonoBehaviour
         }
 
         float totalEarnings = 0f;
+        int winningBets = 0;
 
+        // Evaluar hasta los 3 primeros puestos (Podio)
         for (int i = 0; i < Mathf.Min(3, finishedOrder.Count); i++)
         {
             HorseRunner runner = finishedOrder[i];
-            HorseUIElement horseData = activeBettingHouse.horses.Find(h => h.horseName == runner.horseName);
+
+            // Búsqueda del caballo ignorando mayúsculas/minúsculas y espacios
+            HorseUIElement horseData = activeBettingHouse.horses.Find(h =>
+                h.horseName.Trim().Equals(runner.horseName.Trim(), System.StringComparison.OrdinalIgnoreCase));
 
             if (horseData != null && horseData.currentBet > 0)
             {
@@ -128,20 +144,26 @@ public class GlobalBettingManager : MonoBehaviour
 
                 float payout = horseData.currentBet * multiplier;
                 totalEarnings += payout;
+                winningBets++;
 
                 Debug.Log($"[GlobalBettingManager] ¡{horseData.horseName} quedó en #{i + 1}! Apuesta: {horseData.currentBet}$ x {multiplier:F2}x = {payout}$");
             }
         }
 
+        // Registrar balance para la UI de resultados
+        lastRaceTotalBet = activeBetAmount;
+        lastRaceTotalEarnings = totalEarnings;
+        lastRaceNetProfit = totalEarnings - activeBetAmount; // Puede ser positivo (ganancia) o negativo (pérdida)
+        lastRaceWinningBetsCount = winningBets;
+
+        // Sumar al saldo global las ganancias brutas obtenidas
         playerMoney += totalEarnings;
-        Debug.Log($"[GlobalBettingManager] Fin de carrera. Ganancias totales: {totalEarnings}$. Nuevo total: {playerMoney}$");
+
+        Debug.Log($"[GlobalBettingManager] Fin de carrera. Total Apostado: {lastRaceTotalBet}$. Recuperado: {totalEarnings}$. Beneficio Neto: {lastRaceNetProfit}$. Nuevo Saldo: {playerMoney}$");
 
         ResetBetsState();
     }
 
-    /// <summary>
-    /// Resetea el estado de las apuestas.
-    /// </summary>
     public void ResetBetsState()
     {
         if (activeBettingHouse != null)
@@ -152,6 +174,7 @@ public class GlobalBettingManager : MonoBehaviour
             }
         }
 
+        currentBetsPerHorse.Clear();
         hasActiveBet = false;
         activeBetAmount = 0f;
     }

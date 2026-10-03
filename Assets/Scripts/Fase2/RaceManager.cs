@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class RaceManager : MonoBehaviour
 {
@@ -28,6 +29,10 @@ public class RaceManager : MonoBehaviour
     [Header("Ruta NavMesh")]
     public List<Transform> circuitWaypoints = new List<Transform>();
 
+    [Header("Configuración de Escenas")]
+    public string bettingHouseSceneName;
+    public float fadeDuration = 2f;
+
     private void Awake()
     {
         if (Instance == null)
@@ -52,21 +57,7 @@ public class RaceManager : MonoBehaviour
 
         if (resultsPanel != null) resultsPanel.SetActive(false);
 
-        for (int i = 0; i < runners.Count; i++)
-        {
-            // 1. Posicionar en SpawnPoints
-            if (i < spawnPoints.Count && spawnPoints[i] != null)
-            {
-                runners[i].transform.position = spawnPoints[i].position;
-                runners[i].transform.rotation = spawnPoints[i].rotation;
-            }
-
-            // 2. Asignar waypoints y resetear
-            runners[i].SetWaypoints(circuitWaypoints);
-            runners[i].ResetRunner();
-        }
-
-        // 3. Cargar probabilidades desde la casa de apuestas
+        // 1. Cargar probabilidades e información desde la casa de apuestas activa
         if (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.currentHouse != null)
         {
             var house = GlobalBettingManager.Instance.currentHouse;
@@ -76,7 +67,67 @@ public class RaceManager : MonoBehaviour
             }
         }
 
+        // 2. Precalcular el resultado y puestos de la carrera según probabilidades (Weighted Random)
+        PrecalculateRaceOutcome();
+
+        // 3. Posicionar caballos en parrilla y preparar waypoints
+        for (int i = 0; i < runners.Count; i++)
+        {
+            if (i < spawnPoints.Count && spawnPoints[i] != null)
+            {
+                runners[i].transform.position = spawnPoints[i].position;
+                runners[i].transform.rotation = spawnPoints[i].rotation;
+            }
+
+            runners[i].SetWaypoints(circuitWaypoints);
+            runners[i].ResetRunner();
+        }
+
         StartCoroutine(StartCountdownRoutine());
+    }
+
+    /// <summary>
+    /// Sortea las posiciones finales según la probabilidad acumulada de cada caballo.
+    /// </summary>
+    private void PrecalculateRaceOutcome()
+    {
+        List<HorseRunner> pool = new List<HorseRunner>(runners);
+        int currentRank = 1;
+
+        while (pool.Count > 0)
+        {
+            float totalWeight = 0f;
+            foreach (var r in pool)
+            {
+                // Usamos la probabilidad base + modificadores de cada caballo
+                float prob = Mathf.Max(0.01f, r.baseWinProbability + r.winProbabilityModifier);
+                totalWeight += prob;
+            }
+
+            float roll = Random.Range(0f, totalWeight);
+            float cumulative = 0f;
+
+            HorseRunner selectedRunner = null;
+            foreach (var r in pool)
+            {
+                float prob = Mathf.Max(0.01f, r.baseWinProbability + r.winProbabilityModifier);
+                cumulative += prob;
+
+                if (roll <= cumulative)
+                {
+                    selectedRunner = r;
+                    break;
+                }
+            }
+
+            if (selectedRunner == null) selectedRunner = pool[0];
+
+            // Configurar el rango/puesto asignado al caballo
+            selectedRunner.ConfigureScriptedBehavior(currentRank, runners.Count);
+            currentRank++;
+
+            pool.Remove(selectedRunner);
+        }
     }
 
     private IEnumerator StartCountdownRoutine()
@@ -120,7 +171,6 @@ public class RaceManager : MonoBehaviour
             if (raceStatusText != null)
                 raceStatusText.text = $"Último en llegar: {runner.horseName} (#{finishedOrder.Count})";
 
-            // Si todos los caballos que no cayeron terminaron
             CheckRaceCompletion();
         }
     }
@@ -149,27 +199,47 @@ public class RaceManager : MonoBehaviour
 
     private void ShowResults()
     {
-        if (resultsPanel != null) resultsPanel.SetActive(true);
-
-        string text = "<b>--- PODIO ---</b>\n\n";
-        for (int i = 0; i < finishedOrder.Count; i++)
-        {
-            string medal = i switch
-            {
-                0 => "🥇 1º",
-                1 => "🥈 2º",
-                2 => "🥉 3º",
-                _ => $"{i + 1}º"
-            };
-            text += $"{medal}: {finishedOrder[i].horseName}\n";
-        }
-
-        if (podiumText != null) podiumText.text = text;
-
-        // Notificar resultados al manager global de apuestas si existe
+        // 1. Procesar primero la economía en GlobalBettingManager para calcular las ganancias
         if (GlobalBettingManager.Instance != null)
         {
             GlobalBettingManager.Instance.ProcessRaceResults(finishedOrder);
+        }
+
+        // 2. Rellenar el texto de podio simple
+        if (podiumText != null)
+        {
+            string text = "<b>--- PODIO ---</b>\n\n";
+            for (int i = 0; i < finishedOrder.Count; i++)
+            {
+                string medal = i switch
+                {
+                    0 => "🥇 1º",
+                    1 => "🥈 2º",
+                    2 => "🥉 3º",
+                    _ => $"{i + 1}º"
+                };
+                text += $"{medal}: {finishedOrder[i].horseName}\n";
+            }
+            podiumText.text = text;
+        }
+
+        // 3. Activar el panel de resultados. Al activarse, disparará OnEnable() en RaceResultsUI
+        if (resultsPanel != null)
+        {
+            resultsPanel.SetActive(true);
+        }
+    }
+
+    public void ReturnToBettingHouse()
+    {
+        if (ScreenFade.Instance != null)
+        {
+            ScreenFade.Instance.LoadSceneWithFade(bettingHouseSceneName, fadeDuration);
+        }
+        else
+        {
+            Debug.LogWarning("ScreenFade.Instance no encontrado. Cargando escena directamente...");
+            UnityEngine.SceneManagement.SceneManager.LoadScene(bettingHouseSceneName);
         }
     }
 }

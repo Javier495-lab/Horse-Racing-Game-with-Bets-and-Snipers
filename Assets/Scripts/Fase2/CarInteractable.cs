@@ -4,6 +4,7 @@ public class CarInteractable : MonoBehaviour, IInteractable
 {
     private Outline outline;
     private bool isLoading = false;
+    [SerializeField] private float fadeDuration = 2f;
 
     private void Start()
     {
@@ -53,7 +54,14 @@ public class CarInteractable : MonoBehaviour, IInteractable
         isLoading = true;
         if (outline != null) outline.enabled = false;
 
-        // 🚀 Delegamos la carga y el doble fundido al objeto persistente
-        ScreenFade.Instance.LoadSceneWithFade(targetScene);
+        // Se le pasa la duración personalizada (o omitirla para usar la por defecto)
+        if (ScreenFade.Instance != null)
+        {
+            ScreenFade.Instance.LoadSceneWithFade(targetScene, fadeDuration);
+        }
+        else
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene(targetScene);
+        }
     }
 }
