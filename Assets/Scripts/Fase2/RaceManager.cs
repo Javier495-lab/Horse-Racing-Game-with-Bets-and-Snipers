@@ -1,9 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 public class RaceManager : MonoBehaviour
 {
@@ -99,7 +97,6 @@ public class RaceManager : MonoBehaviour
             float totalWeight = 0f;
             foreach (var r in pool)
             {
-                // Usamos la probabilidad base + modificadores de cada caballo
                 float prob = Mathf.Max(0.01f, r.baseWinProbability + r.winProbabilityModifier);
                 totalWeight += prob;
             }
@@ -122,7 +119,6 @@ public class RaceManager : MonoBehaviour
 
             if (selectedRunner == null) selectedRunner = pool[0];
 
-            // Configurar el rango/puesto asignado al caballo
             selectedRunner.ConfigureScriptedBehavior(currentRank, runners.Count);
             currentRank++;
 
@@ -159,6 +155,53 @@ public class RaceManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Calcula el puesto en vivo de un caballo basándose en si ya llegó o en su avance por la ruta.
+    /// </summary>
+    public int GetLiveHorseRank(HorseRunner targetRunner)
+    {
+        if (targetRunner == null) return -1;
+
+        // Si ya está fuera de la carrera por caída o disparo
+        if (targetRunner.hasFallen || targetRunner.hasBeenShot) return -1;
+
+        // Si ya ha cruzado la meta, devolver su posición definitiva
+        if (targetRunner.hasFinished)
+        {
+            return finishedOrder.IndexOf(targetRunner) + 1;
+        }
+
+        // Para los caballos en carrera, contamos cuántos van por delante de él
+        int rank = finishedOrder.Count + 1;
+
+        foreach (var other in runners)
+        {
+            if (other == targetRunner || other.hasFinished || other.hasFallen || other.hasBeenShot) continue;
+
+            // Comparar progreso por el índice del waypoint
+            if (other.currentWaypointIndex > targetRunner.currentWaypointIndex)
+            {
+                rank++;
+            }
+            else if (other.currentWaypointIndex == targetRunner.currentWaypointIndex)
+            {
+                // Si están en el mismo waypoint, el que tenga menor distancia restante va por delante
+                var agentOther = other.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                var agentTarget = targetRunner.GetComponent<UnityEngine.AI.NavMeshAgent>();
+
+                if (agentOther != null && agentTarget != null && agentOther.enabled && agentTarget.enabled)
+                {
+                    if (agentOther.remainingDistance < agentTarget.remainingDistance)
+                    {
+                        rank++;
+                    }
+                }
+            }
+        }
+
+        return rank;
+    }
+
+    /// <summary>
     /// Llamado desde HorseRunner cuando cruza la meta.
     /// </summary>
     public void OnHorseFinished(HorseRunner runner)
@@ -177,13 +220,14 @@ public class RaceManager : MonoBehaviour
 
     public void CheckRaceCompletion()
     {
-        int activeOrFinished = 0;
+        int inactiveOrFinished = 0;
         foreach (var r in runners)
         {
-            if (r.hasFinished || r.hasFallen) activeOrFinished++;
+            // Se contabiliza si terminó, se cayó o recibió un disparo
+            if (r.hasFinished || r.hasFallen || r.hasBeenShot) inactiveOrFinished++;
         }
 
-        if (activeOrFinished >= runners.Count && isRaceActive)
+        if (inactiveOrFinished >= runners.Count && isRaceActive)
         {
             EndRace();
         }
@@ -223,7 +267,7 @@ public class RaceManager : MonoBehaviour
             podiumText.text = text;
         }
 
-        // 3. Activar el panel de resultados. Al activarse, disparará OnEnable() en RaceResultsUI
+        // 3. Activar el panel de resultados
         if (resultsPanel != null)
         {
             resultsPanel.SetActive(true);

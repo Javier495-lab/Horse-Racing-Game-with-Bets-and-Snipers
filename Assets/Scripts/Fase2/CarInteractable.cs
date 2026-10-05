@@ -37,24 +37,18 @@ public class CarInteractable : MonoBehaviour, IInteractable
             return;
         }
 
-        if (GlobalBettingManager.Instance.activeBettingHouse == null)
-        {
-            Debug.LogError("[Coche] No se ha encontrado la casa de apuestas activa.");
-            return;
-        }
-
-        string targetScene = GlobalBettingManager.Instance.activeBettingHouse.trackSceneName;
+        // Leemos el nombre de la escena directamente desde la variable persistente del Manager Global
+        string targetScene = GlobalBettingManager.Instance.targetTrackSceneName;
 
         if (string.IsNullOrEmpty(targetScene))
         {
-            Debug.LogError("[Coche] La casa activa no tiene una escena de pista asignada.");
+            Debug.LogError("[Coche] La casa activa no tiene una escena de pista asignada en targetTrackSceneName.");
             return;
         }
 
         isLoading = true;
         if (outline != null) outline.enabled = false;
 
-        // Se le pasa la duración personalizada (o omitirla para usar la por defecto)
         if (ScreenFade.Instance != null)
         {
             ScreenFade.Instance.LoadSceneWithFade(targetScene, fadeDuration);

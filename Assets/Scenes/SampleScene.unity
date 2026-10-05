@@ -18138,7 +18138,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7652686835029210665, guid: 462a938c5fb762d47a9576015274c831, type: 3}
       propertyPath: trackSceneName
-      value: PistaNormal
+      value: PistaNPC
       objectReference: {fileID: 0}
     - target: {fileID: 8133448902608145805, guid: 462a938c5fb762d47a9576015274c831, type: 3}
       propertyPath: m_AnchorMax.y
@@ -20575,7 +20575,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7652686835029210665, guid: 462a938c5fb762d47a9576015274c831, type: 3}
       propertyPath: trackSceneName
-      value: PistaGangster
+      value: PistaPetrodolar
       objectReference: {fileID: 0}
     - target: {fileID: 8133448902608145805, guid: 462a938c5fb762d47a9576015274c831, type: 3}
       propertyPath: m_AnchorMax.y
@@ -20685,13 +20685,19 @@ MonoBehaviour:
   playerMoney: 1000
   hasActiveBet: 0
   activeBetAmount: 0
-  activeBettingHouse: {fileID: 0}
+  lastRaceTotalBet: 0
+  lastRaceTotalEarnings: 0
+  lastRaceNetProfit: 0
+  lastRaceWinningBetsCount: 0
+  currentActiveBets: []
+  currentHouse: {fileID: 0}
   allBetScreens:
   - {fileID: 605545399}
   - {fileID: 1534981555}
   - {fileID: 666549785}
   - {fileID: 1703823155}
   - {fileID: 1796378852}
+  targetTrackSceneName: 
 --- !u!4 &1717692534
 Transform:
   m_ObjectHideFlags: 0
@@ -23000,7 +23006,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7652686835029210665, guid: 462a938c5fb762d47a9576015274c831, type: 3}
       propertyPath: trackSceneName
-      value: PistaEpstein
+      value: PistaFinal
       objectReference: {fileID: 0}
     - target: {fileID: 8133448902608145805, guid: 462a938c5fb762d47a9576015274c831, type: 3}
       propertyPath: m_AnchorMax.y
@@ -30066,6 +30072,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f4548f9132a88b642a36f3192a90243f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CarInteractable
+  fadeDuration: 2
 --- !u!65 &2510989249058890498
 BoxCollider:
   m_ObjectHideFlags: 0

@@ -38,7 +38,7 @@ public class RaceCountdownUI : MonoBehaviour
         while (current > 0)
         {
             if (countdownText != null) countdownText.text = current.ToString();
-            yield return new WaitForSeconds(1f);
+            yield return new WaitForSeconds(2f);
             current--;
         }
 

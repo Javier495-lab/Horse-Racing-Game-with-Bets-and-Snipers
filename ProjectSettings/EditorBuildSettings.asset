@@ -11,6 +11,18 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/PistaPobre.unity
     guid: 6ff07a0d75e5bbd4c904bd338efe2e8c
+  - enabled: 1
+    path: Assets/Scenes/PistaNPC.unity
+    guid: 21987657c62cc504db2a2739f2bb4fe4
+  - enabled: 1
+    path: Assets/Scenes/PistaPija.unity
+    guid: ddbb926010cbaac4d903374aa765ecf8
+  - enabled: 1
+    path: Assets/Scenes/PistaPetrodolar.unity
+    guid: 4c2e31c67dc47724dbab28518a01e5fc
+  - enabled: 1
+    path: Assets/Scenes/PistaFinal.unity
+    guid: d8b8cf666050aa642aeabb6a3b43fc78
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0
