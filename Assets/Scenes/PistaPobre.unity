@@ -392,7 +392,7 @@ RectTransform:
   m_GameObject: {fileID: 32309985}
   m_LocalRotation: {x: 0.7071068, y: 0.7071068, z: -0, w: 0}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.0061695506, y: 0.0061695506, z: 0.0061695506}
+  m_LocalScale: {x: 0.011430212, y: 0.011430208, z: 0.011430212}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 351827983}
@@ -419,7 +419,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 835375233}
-  offset: {x: 0, y: 3, z: 0}
+  offset: {x: 0, y: 50, z: 0}
   canvasGroup: {fileID: 32309988}
   horsePortraitImage: {fileID: 1535212864}
   horseNameText: {fileID: 351827984}
@@ -535,6 +535,7 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2109135134}
+  - {fileID: 1854026270}
   m_Father: {fileID: 340507970}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -1525,6 +1526,7 @@ MonoBehaviour:
   aimAction: {fileID: 866692796}
   shootAction: {fileID: 859029377}
   zoomAction: {fileID: 707601806}
+  sprintAction: {fileID: 566684061}
   maxAmmo: 5
   currentAmmo: 0
   mainCamera: {fileID: 499526683}
@@ -1536,7 +1538,13 @@ MonoBehaviour:
   yawLimit: 60
   swayIntensity: 1.5
   swaySpeed: 2
+  swayDamping: 8
+  maxBreathTime: 7
+  breathRecoveryRate: 3
+  breathBarImage: {fileID: 1854026271}
+  blinkSpeed: 10
   baseRecoilAngle: 5
+  recoilSpeed: 25
   recoilRecoverySpeed: 10
   recoilDuration: 0.25
   playerAnimator: {fileID: 0}
@@ -1906,7 +1914,7 @@ RectTransform:
   m_GameObject: {fileID: 392697790}
   m_LocalRotation: {x: 0.70710677, y: 0.7071068, z: -0, w: 0}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.0061700027, y: 0.00617, z: 0.0061700027}
+  m_LocalScale: {x: 0.011430212, y: 0.011430208, z: 0.011430212}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1483454843}
@@ -1933,7 +1941,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 237876112}
-  offset: {x: 0, y: 10, z: 0}
+  offset: {x: 0, y: 50, z: 0}
   canvasGroup: {fileID: 392697793}
   horsePortraitImage: {fileID: 279366989}
   horseNameText: {fileID: 1483454844}
@@ -2506,7 +2514,7 @@ RectTransform:
   m_GameObject: {fileID: 486224506}
   m_LocalRotation: {x: 0.70710677, y: 0.7071068, z: -0, w: 0}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.0061700027, y: 0.00617, z: 0.0061700027}
+  m_LocalScale: {x: 0.011430212, y: 0.011430208, z: 0.011430212}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 655257525}
@@ -2533,7 +2541,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 340881997}
-  offset: {x: 0, y: 10, z: 0}
+  offset: {x: 0, y: 50, z: 0}
   canvasGroup: {fileID: 486224509}
   horsePortraitImage: {fileID: 269549668}
   horseNameText: {fileID: 655257526}
@@ -2932,6 +2940,20 @@ Mesh:
       - serializedVersion: 1
         m_IndexStart: 0
         m_IndexCount: 0
+--- !u!114 &566684061
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc1515ab76e54f068e2f2207940fab32, type: 3}
+  m_Name: Player/Sprint
+  m_EditorClassIdentifier: Unity.InputSystem::UnityEngine.InputSystem.InputActionReference
+  m_Asset: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  m_ActionId: e4598e5c-9372-4547-8c88-1113aac5dc8c
 --- !u!1 &655257524
 GameObject:
   m_ObjectHideFlags: 0
@@ -4468,7 +4490,7 @@ RectTransform:
   m_GameObject: {fileID: 822881557}
   m_LocalRotation: {x: 0.70710677, y: 0.7071068, z: -0, w: 0}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.0061700027, y: 0.00617, z: 0.0061700027}
+  m_LocalScale: {x: 0.011430212, y: 0.011430208, z: 0.011430212}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1338652354}
@@ -4495,7 +4517,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 1456487324}
-  offset: {x: 0, y: 10, z: 0}
+  offset: {x: 0, y: 50, z: 0}
   canvasGroup: {fileID: 822881560}
   horsePortraitImage: {fileID: 990760131}
   horseNameText: {fileID: 1338652355}
@@ -4609,7 +4631,7 @@ RectTransform:
   m_GameObject: {fileID: 830890899}
   m_LocalRotation: {x: 0.70710677, y: 0.7071068, z: -0, w: 0}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.0061700027, y: 0.00617, z: 0.0061700027}
+  m_LocalScale: {x: 0.011430212, y: 0.011430208, z: 0.011430212}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1238647256}
@@ -4636,7 +4658,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 781591769}
-  offset: {x: 0, y: 10, z: 0}
+  offset: {x: 0, y: 50, z: 0}
   canvasGroup: {fileID: 830890902}
   horsePortraitImage: {fileID: 1770239358}
   horseNameText: {fileID: 1238647257}
@@ -9434,7 +9456,7 @@ RectTransform:
   m_GameObject: {fileID: 1135873047}
   m_LocalRotation: {x: 0.70710677, y: 0.7071068, z: -0, w: 0}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.0061700027, y: 0.00617, z: 0.0061700027}
+  m_LocalScale: {x: 0.011430212, y: 0.011430208, z: 0.011430212}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1020601537}
@@ -9461,7 +9483,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 1709423543}
-  offset: {x: 0, y: 10, z: 0}
+  offset: {x: 0, y: 50, z: 0}
   canvasGroup: {fileID: 1135873050}
   horsePortraitImage: {fileID: 27378480}
   horseNameText: {fileID: 1020601538}
@@ -13208,6 +13230,81 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &1854026269
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1854026270}
+  - component: {fileID: 1854026272}
+  - component: {fileID: 1854026271}
+  m_Layer: 5
+  m_Name: Breathe
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &1854026270
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1854026269}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 38038330}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 1.9468, y: -347.93018}
+  m_SizeDelta: {x: 1065.6365, y: 31.8604}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &1854026271
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1854026269}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 0.5529412}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 0}
+  m_Type: 0
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!222 &1854026272
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1854026269}
+  m_CullTransparentMesh: 1
 --- !u!1 &1858663305
 GameObject:
   m_ObjectHideFlags: 0
@@ -13238,7 +13335,7 @@ RectTransform:
   m_GameObject: {fileID: 1858663305}
   m_LocalRotation: {x: 0.70710677, y: 0.7071068, z: -0, w: 0}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.0061700027, y: 0.00617, z: 0.0061700027}
+  m_LocalScale: {x: 0.011430212, y: 0.011430208, z: 0.011430212}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2040605757}
@@ -13265,7 +13362,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 1820759146}
-  offset: {x: 0, y: 10, z: 0}
+  offset: {x: 0, y: 50, z: 0}
   canvasGroup: {fileID: 1858663308}
   horsePortraitImage: {fileID: 1469032191}
   horseNameText: {fileID: 2040605758}
@@ -17550,7 +17647,7 @@ GameObject:
   - component: {fileID: 2109135136}
   - component: {fileID: 2109135135}
   m_Layer: 5
-  m_Name: Image
+  m_Name: Scope
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -17595,7 +17692,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 60c0828d76584884f978947f63486456, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 4cc1ba862092ed94e93e9a6e802735e8, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -17643,7 +17740,7 @@ RectTransform:
   m_GameObject: {fileID: 2128877987}
   m_LocalRotation: {x: 0.70710677, y: 0.7071068, z: -0, w: 0}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.0061700027, y: 0.00617, z: 0.0061700027}
+  m_LocalScale: {x: 0.011430212, y: 0.011430208, z: 0.011430212}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 973229128}
@@ -17670,7 +17767,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 835375233}
-  offset: {x: 0, y: 10, z: 0}
+  offset: {x: 0, y: 50, z: 0}
   canvasGroup: {fileID: 2128877990}
   horsePortraitImage: {fileID: 756120512}
   horseNameText: {fileID: 973229129}

@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 public class SniperSystem : MonoBehaviour
 {
@@ -10,6 +11,7 @@ public class SniperSystem : MonoBehaviour
     public InputActionReference aimAction;
     public InputActionReference shootAction;
     public InputActionReference zoomAction;
+    public InputActionReference sprintAction;
 
     [Header("Munición")]
     public int maxAmmo = 5;
@@ -32,10 +34,24 @@ public class SniperSystem : MonoBehaviour
     [Header("Sway (Movimiento Errático de la Mirilla)")]
     public float swayIntensity = 1.5f;
     public float swaySpeed = 2f;
+    public float swayDamping = 8f;
+
+    [Header("Sistema de Contener la Respiración (Sprint)")]
+    public float maxBreathTime = 4f;
+    public float breathRecoveryRate = 2f;
+    private float currentBreath;
+    private bool isHoldingBreath = false;
+    private bool breathDepleted = false;
+    private float currentSwayWeight = 1f;
+
+    [Header("UI de Respiración (Barra Horizontal)")]
+    public Image breathBarImage;
+    public float blinkSpeed = 10f;
 
     [Header("Retroceso (Recoil)")]
     public float baseRecoilAngle = 5f;
-    public float recoilRecoverySpeed = 10f;
+    public float recoilSpeed = 25f;
+    public float recoilRecoverySpeed = 12f;
     public float recoilDuration = 0.25f;
 
     [Header("Animación y Recarga")]
@@ -47,24 +63,21 @@ public class SniperSystem : MonoBehaviour
     public GameObject sniperScopeUI;
 
     [Header("--- MODIFICADORES / DESBLOQUEABLES ---")]
-    [Tooltip("Permite ajustar el zoom dinámicamente con la rueda del ratón / bumpers.")]
     public bool hasZoomMod = false;
     public float minZoomFOV = 5f;
     public float maxZoomFOV = 30f;
     public float zoomStep = 5f;
 
-    [Tooltip("Cancela por completo el sway/movimiento errático al apuntar.")]
     public bool hasStockMod = false;
-
-    [Tooltip("Evita que los identificadores UI sobre los caballos desaparezcan al apuntar.")]
     public bool hasIdentifierMod = false;
-
-    [Tooltip("Reduce el impacto y la brusquedad del retroceso al disparar.")]
     public bool hasBipodMod = false;
 
     // Estados internos
     private bool isAiming = false;
     private bool isShootingOrReloading = false;
+    private bool isRecounding = false;
+    private float currentRecoilOffset = 0f;
+    private float targetRecoilOffset = 0f;
 
     // Ángulos actuales e iniciales
     private float pitch = 0f;
@@ -87,11 +100,11 @@ public class SniperSystem : MonoBehaviour
         if (mainCamera == null) mainCamera = Camera.main;
         currentFOV = normalFOV;
         currentAmmo = maxAmmo;
+        currentBreath = maxBreathTime;
     }
 
     private void OnEnable()
     {
-        // Suscribir y habilitar acciones del Input System de forma explícita
         if (lookAction != null)
         {
             lookAction.action.Enable();
@@ -117,11 +130,17 @@ public class SniperSystem : MonoBehaviour
             zoomAction.action.Enable();
             zoomAction.action.performed += OnZoomPerformed;
         }
+
+        if (sprintAction != null)
+        {
+            sprintAction.action.Enable();
+            sprintAction.action.started += OnSprintStarted;
+            sprintAction.action.canceled += OnSprintCanceled;
+        }
     }
 
     private void OnDisable()
     {
-        // Desuscribir acciones
         if (lookAction != null)
         {
             lookAction.action.performed -= OnLookPerformed;
@@ -147,6 +166,13 @@ public class SniperSystem : MonoBehaviour
             zoomAction.action.performed -= OnZoomPerformed;
             zoomAction.action.Disable();
         }
+
+        if (sprintAction != null)
+        {
+            sprintAction.action.started -= OnSprintStarted;
+            sprintAction.action.canceled -= OnSprintCanceled;
+            sprintAction.action.Disable();
+        }
     }
 
     private void Start()
@@ -162,14 +188,23 @@ public class SniperSystem : MonoBehaviour
         yaw = initialYaw;
 
         if (sniperScopeUI != null) sniperScopeUI.SetActive(false);
+        if (breathBarImage != null) breathBarImage.gameObject.SetActive(false);
     }
 
     private void Update()
     {
-        if (isShootingOrReloading) return;
+        HandleBreathAndSwayState();
+
+        if (isShootingOrReloading)
+        {
+            HandleRecoilOnly();
+            ApplyCameraFOV();
+            return;
+        }
 
         HandleRotation();
         HandleSway();
+        HandleRecoilOnly();
         ApplyCameraFOV();
     }
 
@@ -217,22 +252,106 @@ public class SniperSystem : MonoBehaviour
         }
     }
 
+    private void OnSprintStarted(InputAction.CallbackContext ctx)
+    {
+        if (isAiming && !breathDepleted)
+        {
+            isHoldingBreath = true;
+        }
+    }
+
+    private void OnSprintCanceled(InputAction.CallbackContext ctx)
+    {
+        isHoldingBreath = false;
+    }
+
     // ==========================================
-    // LÓGICA DE ROTACIÓN Y CÁMARA
+    // LÓGICA DE RESPIRACIÓN Y SWAY
+    // ==========================================
+
+    private void HandleBreathAndSwayState()
+    {
+        if (!isAiming)
+        {
+            isHoldingBreath = false;
+            currentBreath = Mathf.MoveTowards(currentBreath, maxBreathTime, breathRecoveryRate * Time.deltaTime);
+            if (currentBreath >= maxBreathTime) breathDepleted = false;
+
+            if (breathBarImage != null) breathBarImage.gameObject.SetActive(false);
+            currentSwayWeight = Mathf.MoveTowards(currentSwayWeight, 1f, swayDamping * Time.deltaTime);
+            return;
+        }
+
+        if (breathBarImage != null && !breathBarImage.gameObject.activeSelf)
+        {
+            breathBarImage.gameObject.SetActive(true);
+        }
+
+        if (isHoldingBreath && !breathDepleted)
+        {
+            currentBreath -= Time.deltaTime;
+            if (currentBreath <= 0f)
+            {
+                currentBreath = 0f;
+                breathDepleted = true;
+                isHoldingBreath = false;
+            }
+        }
+        else
+        {
+            currentBreath += breathRecoveryRate * Time.deltaTime;
+            currentBreath = Mathf.Clamp(currentBreath, 0f, maxBreathTime);
+
+            if (breathDepleted && currentBreath >= maxBreathTime)
+            {
+                breathDepleted = false;
+            }
+        }
+
+        float targetSwayWeight = (isHoldingBreath && !hasStockMod) ? 0f : 1f;
+        currentSwayWeight = Mathf.MoveTowards(currentSwayWeight, targetSwayWeight, swayDamping * Time.deltaTime);
+
+        UpdateBreathUI();
+    }
+
+    private void UpdateBreathUI()
+    {
+        if (breathBarImage == null) return;
+
+        float fillRatio = currentBreath / maxBreathTime;
+
+        // Escalar en el eje X simétricamente (requiere que el Pivot de la Image esté en el centro: 0.5, 0.5)
+        RectTransform rect = breathBarImage.rectTransform;
+        rect.localScale = new Vector3(fillRatio, rect.localScale.y, rect.localScale.z);
+
+        // Color y parpadeo si se agotó
+        if (breathDepleted)
+        {
+            float alpha = Mathf.PingPong(Time.time * blinkSpeed, 1f);
+            breathBarImage.color = new Color(1f, 0f, 0f, alpha > 0.5f ? 1f : 0.3f);
+        }
+        else
+        {
+            breathBarImage.color = Color.white;
+        }
+    }
+
+    // ==========================================
+    // LÓGICA DE ROTACIÓN, SWAY Y RECOIL
     // ==========================================
 
     private void HandleRotation()
     {
         yaw += lookInput.x * mouseSensitivity;
-
-        // CAMBIO AQUÍ: Cambiamos '-' por '+' para desinvertir el eje vertical
         pitch += lookInput.y * mouseSensitivity;
 
         pitch = Mathf.Clamp(pitch, initialPitch - pitchLimit, initialPitch + pitchLimit);
         yaw = Mathf.Clamp(yaw, initialYaw - yawLimit, initialYaw + yawLimit);
 
-        Vector3 targetEuler = new Vector3(pitch + swayOffset.x, yaw + swayOffset.y, 0f);
-        transform.eulerAngles = targetEuler;
+        float finalPitch = pitch + (swayOffset.x * currentSwayWeight) + currentRecoilOffset;
+        float finalYaw = yaw + (swayOffset.y * currentSwayWeight);
+
+        transform.eulerAngles = new Vector3(finalPitch, finalYaw, 0f);
     }
 
     private void HandleSway()
@@ -248,6 +367,24 @@ public class SniperSystem : MonoBehaviour
         {
             swayOffset = Vector2.zero;
             swayTimer = 0f;
+        }
+    }
+
+    private void HandleRecoilOnly()
+    {
+        float speed = isRecounding ? recoilSpeed : recoilRecoverySpeed;
+        currentRecoilOffset = Mathf.MoveTowards(currentRecoilOffset, targetRecoilOffset, speed * Time.deltaTime);
+
+        if (Mathf.Approximately(currentRecoilOffset, targetRecoilOffset) && targetRecoilOffset != 0f)
+        {
+            targetRecoilOffset = 0f;
+            isRecounding = false;
+        }
+
+        if (isShootingOrReloading)
+        {
+            float finalPitch = pitch + currentRecoilOffset;
+            transform.eulerAngles = new Vector3(finalPitch, yaw, 0f);
         }
     }
 
@@ -272,6 +409,7 @@ public class SniperSystem : MonoBehaviour
     private void StopAiming()
     {
         isAiming = false;
+        isHoldingBreath = false;
         currentFOV = normalFOV;
 
         if (sniperScopeUI != null) sniperScopeUI.SetActive(false);
@@ -279,40 +417,43 @@ public class SniperSystem : MonoBehaviour
         OnAimStateChanged?.Invoke(false, hasIdentifierMod);
     }
 
+    // ==========================================
+    // RUTINA DE DISPARO Y RECARGA SEPARADAS
+    // ==========================================
+
     private IEnumerator ShootRoutine()
     {
         isShootingOrReloading = true;
         currentAmmo--;
 
+        // 1. Raycast de impacto
         PerformRaycastShoot();
 
-        if (sniperScopeUI != null) sniperScopeUI.SetActive(false);
-        OnAimStateChanged?.Invoke(false, hasIdentifierMod);
-
+        // 2. FASE 1: Recoil manteniendo el estado de apuntar y la UI activa
         float effectiveRecoil = hasBipodMod ? (baseRecoilAngle * 0.35f) : baseRecoilAngle;
-        float startPitch = pitch;
-        float targetPitch = Mathf.Clamp(pitch - effectiveRecoil, initialPitch - pitchLimit, initialPitch + pitchLimit);
+        targetRecoilOffset = -effectiveRecoil;
+        isRecounding = true;
 
-        float elapsed = 0f;
-        while (elapsed < recoilDuration)
-        {
-            pitch = Mathf.Lerp(startPitch, targetPitch, elapsed / recoilDuration);
-            transform.eulerAngles = new Vector3(pitch, yaw, 0f);
-            elapsed += Time.deltaTime;
-            yield return null;
-        }
+        yield return new WaitForSeconds(recoilDuration);
 
-        isAiming = false;
-        currentFOV = normalFOV;
+        // 3. FASE 2: Fin de la mira y comienzo de la Recarga
+        StopAiming(); // Desactiva UI de la mira, restaura FOV normal y notifica a la UI de los caballos
 
         if (playerAnimator != null)
         {
             playerAnimator.SetTrigger(reloadAnimTrigger);
         }
 
+        // Bloqueo de entrada durante la animación de recarga en vista estándar
         yield return new WaitForSeconds(reloadDuration);
 
+        // 4. Se devuelve el control al jugador. Si mantenía presionado el botón de apuntar, vuelve a apuntar
         isShootingOrReloading = false;
+
+        if (aimAction != null && aimAction.action.IsPressed())
+        {
+            StartAiming();
+        }
     }
 
     private void PerformRaycastShoot()
