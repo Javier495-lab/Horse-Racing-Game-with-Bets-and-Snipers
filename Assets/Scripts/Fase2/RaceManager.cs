@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.AI;
 
 public class RaceManager : MonoBehaviour
 {
@@ -31,6 +32,9 @@ public class RaceManager : MonoBehaviour
     public string bettingHouseSceneName;
     public float fadeDuration = 2f;
 
+    [Header("Jugador")]
+    public SniperSystem Player;
+
     private void Awake()
     {
         if (Instance == null)
@@ -55,7 +59,7 @@ public class RaceManager : MonoBehaviour
 
         if (resultsPanel != null) resultsPanel.SetActive(false);
 
-        // 1. Cargar probabilidades e información desde la casa de apuestas activa
+        // 1. Cargar probabilidades e información desde la casa de apuestas activa (incluye modificadores del Mercado)
         if (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.currentHouse != null)
         {
             var house = GlobalBettingManager.Instance.currentHouse;
@@ -65,7 +69,7 @@ public class RaceManager : MonoBehaviour
             }
         }
 
-        // 2. Precalcular el resultado y puestos de la carrera según probabilidades (Weighted Random)
+        // 2. Precalcular el resultado y puestos de la carrera según probabilidades + ESTEROIDES
         PrecalculateRaceOutcome();
 
         // 3. Posicionar caballos en parrilla y preparar waypoints
@@ -85,7 +89,7 @@ public class RaceManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Sortea las posiciones finales según la probabilidad acumulada de cada caballo.
+    /// ESTEROIDES: Sortea las posiciones finales usando la probabilidad base + el modificador por esteroides.
     /// </summary>
     private void PrecalculateRaceOutcome()
     {
@@ -97,6 +101,7 @@ public class RaceManager : MonoBehaviour
             float totalWeight = 0f;
             foreach (var r in pool)
             {
+                // Incluye el multiplicador de esteroides asignado en el mercado negro
                 float prob = Mathf.Max(0.01f, r.baseWinProbability + r.winProbabilityModifier);
                 totalWeight += prob;
             }
@@ -132,7 +137,7 @@ public class RaceManager : MonoBehaviour
         while (timer > 0)
         {
             if (countdownText != null) countdownText.text = timer.ToString();
-            yield return new WaitForSeconds(1f);
+            yield return new WaitForSeconds(3f);
             timer--;
         }
 
@@ -154,39 +159,31 @@ public class RaceManager : MonoBehaviour
         if (raceStatusText != null) raceStatusText.text = "¡Carrera en curso!";
     }
 
-    /// <summary>
-    /// Calcula el puesto en vivo de un caballo basándose en si ya llegó o en su avance por la ruta.
-    /// </summary>
     public int GetLiveHorseRank(HorseRunner targetRunner)
     {
         if (targetRunner == null) return -1;
 
-        // Si ya está fuera de la carrera por caída o disparo
         if (targetRunner.hasFallen || targetRunner.hasBeenShot) return -1;
 
-        // Si ya ha cruzado la meta, devolver su posición definitiva
         if (targetRunner.hasFinished)
         {
             return finishedOrder.IndexOf(targetRunner) + 1;
         }
 
-        // Para los caballos en carrera, contamos cuántos van por delante de él
         int rank = finishedOrder.Count + 1;
 
         foreach (var other in runners)
         {
             if (other == targetRunner || other.hasFinished || other.hasFallen || other.hasBeenShot) continue;
 
-            // Comparar progreso por el índice del waypoint
             if (other.currentWaypointIndex > targetRunner.currentWaypointIndex)
             {
                 rank++;
             }
             else if (other.currentWaypointIndex == targetRunner.currentWaypointIndex)
             {
-                // Si están en el mismo waypoint, el que tenga menor distancia restante va por delante
-                var agentOther = other.GetComponent<UnityEngine.AI.NavMeshAgent>();
-                var agentTarget = targetRunner.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                var agentOther = other.GetComponent<NavMeshAgent>();
+                var agentTarget = targetRunner.GetComponent<NavMeshAgent>();
 
                 if (agentOther != null && agentTarget != null && agentOther.enabled && agentTarget.enabled)
                 {
@@ -201,9 +198,6 @@ public class RaceManager : MonoBehaviour
         return rank;
     }
 
-    /// <summary>
-    /// Llamado desde HorseRunner cuando cruza la meta.
-    /// </summary>
     public void OnHorseFinished(HorseRunner runner)
     {
         if (!finishedOrder.Contains(runner))
@@ -223,7 +217,6 @@ public class RaceManager : MonoBehaviour
         int inactiveOrFinished = 0;
         foreach (var r in runners)
         {
-            // Se contabiliza si terminó, se cayó o recibió un disparo
             if (r.hasFinished || r.hasFallen || r.hasBeenShot) inactiveOrFinished++;
         }
 
@@ -235,21 +228,27 @@ public class RaceManager : MonoBehaviour
 
     private void EndRace()
     {
+        if (Player != null)
+        {
+            Player.StopAiming();
+            Player.enabled = false;
+        }
+
         isRaceActive = false;
         if (raceStatusText != null) raceStatusText.text = "¡Carrera finalizada!";
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
 
         ShowResults();
     }
 
     private void ShowResults()
     {
-        // 1. Procesar primero la economía en GlobalBettingManager para calcular las ganancias
         if (GlobalBettingManager.Instance != null)
         {
             GlobalBettingManager.Instance.ProcessRaceResults(finishedOrder);
         }
 
-        // 2. Rellenar el texto de podio simple
         if (podiumText != null)
         {
             string text = "<b>--- PODIO ---</b>\n\n";
@@ -267,7 +266,6 @@ public class RaceManager : MonoBehaviour
             podiumText.text = text;
         }
 
-        // 3. Activar el panel de resultados
         if (resultsPanel != null)
         {
             resultsPanel.SetActive(true);

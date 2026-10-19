@@ -158,7 +158,7 @@ public class GlobalBettingManager : MonoBehaviour
             }
         }
 
-        // Asignar variables globales para la UI
+        // Asignar variables globales para la UI (CORREGIDO EL OPERADOR MENOS)
         lastRaceTotalBet = activeBetAmount;
         lastRaceTotalEarnings = totalEarnings;
         lastRaceNetProfit = totalEarnings - activeBetAmount;

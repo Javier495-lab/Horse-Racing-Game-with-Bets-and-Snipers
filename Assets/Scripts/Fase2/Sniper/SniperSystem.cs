@@ -72,6 +72,15 @@ public class SniperSystem : MonoBehaviour
     public bool hasIdentifierMod = false;
     public bool hasBipodMod = false;
 
+    [Header("Referencias de Reloj Mágico & VIP (Mercado Negro)")]
+    public InputActionReference slowTimeAction; // Acción de Input System vinculada a 'Ctrl'
+    public Transform vipCameraTransform;         // Transform del puesto VIP en las gradas
+    public Image magicClockBarImage;             // Barra HUD para el Reloj Mágico
+    public float maxMagicClockTime = 5f;         // Segundos totales de uso del reloj
+    private float currentMagicClockTime;
+    private bool isUsingMagicClock = false;
+    private bool clockWasUsedInRace = false;
+
     // Estados internos
     private bool isAiming = false;
     private bool isShootingOrReloading = false;
@@ -100,7 +109,20 @@ public class SniperSystem : MonoBehaviour
         if (mainCamera == null) mainCamera = Camera.main;
         currentFOV = normalFOV;
         currentAmmo = maxAmmo;
+
+        // 🪄 3. POLVO MÁGICO: Aumentar MaxBreathTime si se compró
+        if (BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActivePolvoMagico)
+        {
+            maxBreathTime += BlackMarketManager.Instance.breathTimeIncrease;
+            Debug.Log($"[SniperSystem] Polvo Mágico activo. Nuevo MaxBreathTime: {maxBreathTime}s");
+        }
+
         currentBreath = maxBreathTime;
+
+        if (BlackMarketManager.Instance != null)
+        {
+            currentMagicClockTime = maxMagicClockTime;
+        }
     }
 
     private void OnEnable()
@@ -136,6 +158,13 @@ public class SniperSystem : MonoBehaviour
             sprintAction.action.Enable();
             sprintAction.action.started += OnSprintStarted;
             sprintAction.action.canceled += OnSprintCanceled;
+        }
+
+        if (slowTimeAction != null)
+        {
+            slowTimeAction.action.Enable();
+            slowTimeAction.action.started += OnSlowTimeStarted;
+            slowTimeAction.action.canceled += OnSlowTimeCanceled;
         }
     }
 
@@ -173,12 +202,30 @@ public class SniperSystem : MonoBehaviour
             sprintAction.action.canceled -= OnSprintCanceled;
             sprintAction.action.Disable();
         }
+
+        if (slowTimeAction != null)
+        {
+            slowTimeAction.action.started -= OnSlowTimeStarted;
+            slowTimeAction.action.canceled -= OnSlowTimeCanceled;
+            slowTimeAction.action.Disable();
+        }
     }
 
     private void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        // 🎟️ 5. ENTRADA VIP: Teletransportar cámara si se compró el pase
+        if (BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActiveVipTicket)
+        {
+            if (vipCameraTransform != null)
+            {
+                transform.position = vipCameraTransform.position;
+                transform.rotation = vipCameraTransform.rotation;
+                Debug.Log("[SniperSystem] Entrada VIP activa: Cámara posicionada en las gradas VIP.");
+            }
+        }
 
         Vector3 initialEuler = transform.eulerAngles;
         initialPitch = initialEuler.x > 180f ? initialEuler.x - 360f : initialEuler.x;
@@ -189,6 +236,7 @@ public class SniperSystem : MonoBehaviour
 
         if (sniperScopeUI != null) sniperScopeUI.SetActive(false);
         if (breathBarImage != null) breathBarImage.gameObject.SetActive(false);
+        if (magicClockBarImage != null) magicClockBarImage.gameObject.SetActive(false);
     }
 
     private void Update()
@@ -206,6 +254,7 @@ public class SniperSystem : MonoBehaviour
         HandleSway();
         HandleRecoilOnly();
         ApplyCameraFOV();
+        HandleMagicClock();
     }
 
     // ==========================================
@@ -406,7 +455,7 @@ public class SniperSystem : MonoBehaviour
         OnAimStateChanged?.Invoke(true, hasIdentifierMod);
     }
 
-    private void StopAiming()
+    public void StopAiming()
     {
         isAiming = false;
         isHoldingBreath = false;
@@ -466,6 +515,67 @@ public class SniperSystem : MonoBehaviour
             {
                 targetHorse.TriggerShot();
             }
+        }
+    }
+
+    private void OnSlowTimeStarted(InputAction.CallbackContext ctx)
+    {
+        if (BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActiveMagicClock && currentMagicClockTime > 0f)
+        {
+            isUsingMagicClock = true;
+            clockWasUsedInRace = true;
+        }
+    }
+
+    private void OnSlowTimeCanceled(InputAction.CallbackContext ctx)
+    {
+        isUsingMagicClock = false;
+    }
+
+    // Lógica de ralentización y consumo del Reloj:
+    private void HandleMagicClock()
+    {
+        if (BlackMarketManager.Instance == null || !BlackMarketManager.Instance.hasActiveMagicClock)
+        {
+            if (magicClockBarImage != null) magicClockBarImage.gameObject.SetActive(false);
+            return;
+        }
+
+        if (magicClockBarImage != null && !magicClockBarImage.gameObject.activeSelf)
+        {
+            magicClockBarImage.gameObject.SetActive(true);
+        }
+
+        if (isUsingMagicClock && currentMagicClockTime > 0f)
+        {
+            currentMagicClockTime -= Time.unscaledDeltaTime;
+            Time.timeScale = 0.3f; // Ralentiza la escena
+
+            if (currentMagicClockTime <= 0f)
+            {
+                currentMagicClockTime = 0f;
+                isUsingMagicClock = false;
+                Time.timeScale = 1f;
+            }
+        }
+        else
+        {
+            Time.timeScale = 1f;
+        }
+
+        if (magicClockBarImage != null)
+        {
+            magicClockBarImage.fillAmount = currentMagicClockTime / maxMagicClockTime;
+        }
+    }
+
+    // Al salir de la escena de carrera, notificar al gestor si se usó o no:
+    private void OnDestroy()
+    {
+        Time.timeScale = 1f; // Restaurar escala normal por seguridad
+        if (BlackMarketManager.Instance != null)
+        {
+            BlackMarketManager.Instance.NotifyRaceFinished(clockWasUsedInRace);
         }
     }
 }

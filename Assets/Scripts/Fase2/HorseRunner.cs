@@ -35,7 +35,7 @@ public class HorseRunner : MonoBehaviour
     public bool isRunning = false;
     public bool hasFinished = false;
     public bool hasFallen = false;
-    public bool hasBeenShot = false; // 🎯 Nuevo estado: Disparado
+    public bool hasBeenShot = false; // 🎯 Disparado
 
     [Header("Simulación Predeterminada (Scripted)")]
     [SerializeField] private int assignedFinalRank = -1;
@@ -104,8 +104,12 @@ public class HorseRunner : MonoBehaviour
         CalculateSingleFallChance();
     }
 
+    /// <summary>
+    /// HERRADURAS: Calcula si el caballo caerá considerando el modificador de herraduras.
+    /// </summary>
     private void CalculateSingleFallChance()
     {
+        // Se aplica la reducción (-5% por herradura) a la probabilidad base
         float effectiveFallChance = Mathf.Clamp(baseFallChancePercent + fallProbabilityModifier, 0f, 100f);
         willFallThisRace = (Random.Range(0f, 100f) < effectiveFallChance);
 
@@ -149,6 +153,7 @@ public class HorseRunner : MonoBehaviour
 
         currentSectorIndex = sectorIndex;
 
+        // Corrección sintáctica aquí:
         if (sectorIndex < totalSectors - 1)
         {
             float noise = Random.Range(-speedVariationRange, speedVariationRange);
@@ -185,7 +190,7 @@ public class HorseRunner : MonoBehaviour
     {
         if (agent == null || !agent.enabled || waypoints.Count == 0) return;
 
-        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 1.5f)
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 15f)
         {
             if (willFallThisRace && currentWaypointIndex == fallAtWaypointIndex)
             {
@@ -229,10 +234,6 @@ public class HorseRunner : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 🎯 Reacción del caballo al ser impactado por un disparo del francotirador.
-    /// Queda fuera de la carrera y se detiene en la posición actual.
-    /// </summary>
     public void TriggerShot()
     {
         if (hasBeenShot || hasFallen || hasFinished) return;
@@ -245,7 +246,6 @@ public class HorseRunner : MonoBehaviour
 
         if (animator != null)
         {
-            // Puedes usar un Trigger de animación 'Shot' o reutilizar 'Fall'
             animator.SetTrigger("Shot");
         }
 
@@ -267,7 +267,7 @@ public class HorseRunner : MonoBehaviour
 
         if (obstacle != null)
         {
-            obstacle.enabled = true; // Activa obstáculo para que otros caballos lo esquiven
+            obstacle.enabled = true;
         }
     }
 
@@ -285,14 +285,6 @@ public class HorseRunner : MonoBehaviour
     private void CrossFinishLine()
     {
         hasFinished = true;
-        isRunning = false;
-
-        if (agent != null && agent.enabled)
-        {
-            agent.isStopped = true;
-        }
-
-        if (animator != null) animator.SetBool("IsRunning", false);
 
         if (RaceManager.Instance != null)
         {

@@ -128,6 +128,8 @@ public class BettingHouseUI : MonoBehaviour
         foreach (var h in horses)
         {
             float risk = (1f - h.winProbability) / h.winProbability;
+
+            // CORREGIDO: Se añadió el operador '*' para multiplicar el riesgo por el factor correspondiente
             h.mult1st = 1f + (risk * factor1st);
             h.mult2nd = 1f + (risk * factor2nd);
             h.mult3rd = 1f + (risk * factor3rd);
