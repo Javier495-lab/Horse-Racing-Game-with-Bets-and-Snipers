@@ -419,7 +419,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 835375233}
-  offset: {x: 0, y: 30, z: 0}
+  offset: {x: 0, y: 15, z: 0}
   canvasGroup: {fileID: 32309988}
   horsePortraitImage: {fileID: 1535212864}
   horseNameText: {fileID: 351827984}
@@ -536,6 +536,7 @@ RectTransform:
   m_Children:
   - {fileID: 2109135134}
   - {fileID: 1854026270}
+  - {fileID: 1657073042}
   m_Father: {fileID: 340507970}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -818,6 +819,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 116644897}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &174650370
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc1515ab76e54f068e2f2207940fab32, type: 3}
+  m_Name: Player/TimeShooting
+  m_EditorClassIdentifier: Unity.InputSystem::UnityEngine.InputSystem.InputActionReference
+  m_Asset: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  m_ActionId: 7251f867-9d7a-425d-9366-4fccda0b9344
 --- !u!1 &180632940
 GameObject:
   m_ObjectHideFlags: 0
@@ -1064,7 +1079,7 @@ MonoBehaviour:
   waypoints: []
   currentWaypointIndex: 0
   minWaypointToFinish: 2
-  baseFallChancePercent: 5
+  baseFallChancePercent: 7.5
   willFallThisRace: 0
   fallAtWaypointIndex: -1
   isRunning: 0
@@ -1527,6 +1542,7 @@ MonoBehaviour:
   shootAction: {fileID: 859029377}
   zoomAction: {fileID: 707601806}
   sprintAction: {fileID: 566684061}
+  slowTimeAction: {fileID: 174650370}
   maxAmmo: 5
   currentAmmo: 0
   mainCamera: {fileID: 499526683}
@@ -1558,6 +1574,9 @@ MonoBehaviour:
   hasStockMod: 0
   hasIdentifierMod: 0
   hasBipodMod: 0
+  vipCameraTransform: {fileID: 578626687}
+  magicClockBarImage: {fileID: 1657073040}
+  maxMagicClockTime: 8
 --- !u!4 &340507970
 Transform:
   m_ObjectHideFlags: 0
@@ -1567,12 +1586,13 @@ Transform:
   m_GameObject: {fileID: 340507968}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 122.49991, y: 47.5, z: 113}
+  m_LocalPosition: {x: 122.49991, y: 88.7, z: 113}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 499526684}
   - {fileID: 38038330}
+  - {fileID: 578626687}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &340881992
@@ -1715,7 +1735,7 @@ MonoBehaviour:
   waypoints: []
   currentWaypointIndex: 0
   minWaypointToFinish: 2
-  baseFallChancePercent: 5
+  baseFallChancePercent: 7.5
   willFallThisRace: 0
   fallAtWaypointIndex: -1
   isRunning: 0
@@ -1941,7 +1961,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 237876112}
-  offset: {x: 0, y: 30, z: 0}
+  offset: {x: 0, y: 15, z: 0}
   canvasGroup: {fileID: 392697793}
   horsePortraitImage: {fileID: 279366989}
   horseNameText: {fileID: 1483454844}
@@ -2541,7 +2561,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 340881997}
-  offset: {x: 0, y: 30, z: 0}
+  offset: {x: 0, y: 15, z: 0}
   canvasGroup: {fileID: 486224509}
   horsePortraitImage: {fileID: 269549668}
   horseNameText: {fileID: 655257526}
@@ -2954,6 +2974,37 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.InputSystem::UnityEngine.InputSystem.InputActionReference
   m_Asset: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_ActionId: e4598e5c-9372-4547-8c88-1113aac5dc8c
+--- !u!1 &578626686
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 578626687}
+  m_Layer: 0
+  m_Name: PremuimSeating
+  m_TagString: Untagged
+  m_Icon: {fileID: 3306451490063965843, guid: 0000000000000000d000000000000000, type: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &578626687
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 578626686}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -0.000030517578, y: -72.99, z: -40.08}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 340507970}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!43 &654265990
 Mesh:
   m_ObjectHideFlags: 0
@@ -3772,7 +3823,7 @@ MonoBehaviour:
   waypoints: []
   currentWaypointIndex: 0
   minWaypointToFinish: 2
-  baseFallChancePercent: 5
+  baseFallChancePercent: 7.5
   willFallThisRace: 0
   fallAtWaypointIndex: -1
   isRunning: 0
@@ -4695,7 +4746,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 1456487324}
-  offset: {x: 0, y: 30, z: 0}
+  offset: {x: 0, y: 15, z: 0}
   canvasGroup: {fileID: 822881560}
   horsePortraitImage: {fileID: 990760131}
   horseNameText: {fileID: 1338652355}
@@ -4836,7 +4887,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 781591769}
-  offset: {x: 0, y: 30, z: 0}
+  offset: {x: 0, y: 15, z: 0}
   canvasGroup: {fileID: 830890902}
   horsePortraitImage: {fileID: 1770239358}
   horseNameText: {fileID: 1238647257}
@@ -5060,7 +5111,7 @@ MonoBehaviour:
   waypoints: []
   currentWaypointIndex: 0
   minWaypointToFinish: 2
-  baseFallChancePercent: 5
+  baseFallChancePercent: 7.5
   willFallThisRace: 0
   fallAtWaypointIndex: -1
   isRunning: 0
@@ -10041,7 +10092,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 1709423543}
-  offset: {x: 0, y: 30, z: 0}
+  offset: {x: 0, y: 15, z: 0}
   canvasGroup: {fileID: 1135873050}
   horsePortraitImage: {fileID: 27378480}
   horseNameText: {fileID: 1020601538}
@@ -11567,7 +11618,7 @@ MonoBehaviour:
   waypoints: []
   currentWaypointIndex: 0
   minWaypointToFinish: 2
-  baseFallChancePercent: 5
+  baseFallChancePercent: 7.5
   willFallThisRace: 0
   fallAtWaypointIndex: -1
   isRunning: 0
@@ -12771,6 +12822,81 @@ Transform:
   - {fileID: 1540749634}
   m_Father: {fileID: 2077341880}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1657073039
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1657073042}
+  - component: {fileID: 1657073041}
+  - component: {fileID: 1657073040}
+  m_Layer: 5
+  m_Name: Clock
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1657073040
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1657073039}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 0, b: 0.7600517, a: 0.5529412}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 0}
+  m_Type: 0
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!222 &1657073041
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1657073039}
+  m_CullTransparentMesh: 1
+--- !u!224 &1657073042
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1657073039}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1.1945, y: 1.2990187, z: 1.1945}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 38038330}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 1.9468, y: -406}
+  m_SizeDelta: {x: 1065.6365, y: 31.8604}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &1657413922
 GameObject:
   m_ObjectHideFlags: 0
@@ -13436,7 +13562,7 @@ MonoBehaviour:
   waypoints: []
   currentWaypointIndex: 0
   minWaypointToFinish: 2
-  baseFallChancePercent: 5
+  baseFallChancePercent: 7.5
   willFallThisRace: 0
   fallAtWaypointIndex: -1
   isRunning: 0
@@ -13820,7 +13946,7 @@ MonoBehaviour:
   waypoints: []
   currentWaypointIndex: 0
   minWaypointToFinish: 2
-  baseFallChancePercent: 5
+  baseFallChancePercent: 7.5
   willFallThisRace: 0
   fallAtWaypointIndex: -1
   isRunning: 0
@@ -14020,7 +14146,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
   horseRunner: {fileID: 1820759146}
-  offset: {x: 0, y: 30, z: 0}
+  offset: {x: 0, y: 15, z: 0}
   canvasGroup: {fileID: 1858663308}
   horsePortraitImage: {fileID: 1469032191}
   horseNameText: {fileID: 2040605758}
@@ -14281,7 +14407,7 @@ MonoBehaviour:
   waypoints: []
   currentWaypointIndex: 0
   minWaypointToFinish: 2
-  baseFallChancePercent: 5
+  baseFallChancePercent: 7.5
   willFallThisRace: 0
   fallAtWaypointIndex: -1
   isRunning: 0
@@ -18424,8 +18550,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c1ee14fae16691743a9bd77d632ad96d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HorseUIIdentifier
-  horseRunner: {fileID: 835375233}
-  offset: {x: 0, y: 30, z: 0}
+  horseRunner: {fileID: 1892500849}
+  offset: {x: 0, y: 15, z: 0}
   canvasGroup: {fileID: 2128877990}
   horsePortraitImage: {fileID: 756120512}
   horseNameText: {fileID: 973229129}

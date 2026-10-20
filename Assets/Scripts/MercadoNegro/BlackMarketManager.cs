@@ -113,17 +113,49 @@ public class BlackMarketManager : MonoBehaviour
     public void NotifyRaceFinished(bool clockWasUsed)
     {
         string houseKey = GetCurrentHouseKey();
+
+        // 1. RELOJ MÁGICO: Se consume solo si fue utilizado durante la carrera
         if (clockWasUsed)
         {
             purchasedMagicClockPerHouse[houseKey] = false;
             hasActiveMagicClock = false;
-            Debug.Log("[BlackMarket] Reloj Mágico consumido tras ser usado.");
+            Debug.Log("[BlackMarket] Reloj Mágico consumido tras ser usado en la carrera.");
+        }
+        else
+        {
+            Debug.Log("[BlackMarket] Reloj Mágico NO fue usado. Permanece disponible.");
         }
 
-        // Limpiar asignaciones temporales para la siguiente carrera
-        assignedSteroidsToHorses.Clear();
-        assignedHorseshoesToHorses.Clear();
+        // 2. POLVO MÁGICO & ENTRADA VIP: Se resetean SIEMPRE tras cada carrera
+        purchasedPolvoMagicoPerHouse[houseKey] = false;
+        purchasedVipTicketPerHouse[houseKey] = false;
         hasActivePolvoMagico = false;
         hasActiveVipTicket = false;
+
+        // 3. ESTEROIDES: Restar únicamente las unidades que se asignaron/usaron en la carrera
+        int totalAssignedSteroids = GetTotalAssigned(assignedSteroidsToHorses);
+        int currentSteroidsOwned = GetSteroidsOwned(houseKey);
+        int remainingSteroids = Mathf.Max(0, currentSteroidsOwned - totalAssignedSteroids);
+        purchasedSteroidsPerHouse[houseKey] = remainingSteroids;
+
+        // 4. HERRADURAS: Restar únicamente las unidades que se asignaron/usaron en la carrera
+        int totalAssignedHorseshoes = GetTotalAssigned(assignedHorseshoesToHorses);
+        int currentHorseshoesOwned = GetHorseshoesOwned(houseKey);
+        int remainingHorseshoes = Mathf.Max(0, currentHorseshoesOwned - totalAssignedHorseshoes);
+        purchasedHorseshoesPerHouse[houseKey] = remainingHorseshoes;
+
+        Debug.Log($"[BlackMarket] Resumen post-carrera para {houseKey} -> Steroids restantes: {remainingSteroids}, Horseshoes restantes: {remainingHorseshoes}");
+
+        // 5. Limpiar los diccionarios de asignación por caballo para la siguiente ronda
+        assignedSteroidsToHorses.Clear();
+        assignedHorseshoesToHorses.Clear();
+    }
+
+    private int GetTotalAssigned(Dictionary<string, int> dict)
+    {
+        int sum = 0;
+        foreach (var kvp in dict) sum += kvp.Value;
+        return sum;
     }
 }
+

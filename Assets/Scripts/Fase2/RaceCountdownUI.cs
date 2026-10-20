@@ -18,7 +18,7 @@ public class RaceCountdownUI : MonoBehaviour
     {
         if (autoStartOnLoad)
         {
-            Invoke(nameof(StartCountdown), 0.5f);
+            Invoke(nameof(StartCountdown), 3f);
         }
     }
 
@@ -38,7 +38,7 @@ public class RaceCountdownUI : MonoBehaviour
         while (current > 0)
         {
             if (countdownText != null) countdownText.text = current.ToString();
-            yield return new WaitForSeconds(2f);
+            yield return new WaitForSeconds(3f);
             current--;
         }
 

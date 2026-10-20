@@ -59,20 +59,40 @@ public class RaceManager : MonoBehaviour
 
         if (resultsPanel != null) resultsPanel.SetActive(false);
 
-        // 1. Cargar probabilidades e información desde la casa de apuestas activa (incluye modificadores del Mercado)
+        // 1. Cargar probabilidades e información desde la casa de apuestas activa
         if (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.currentHouse != null)
         {
             var house = GlobalBettingManager.Instance.currentHouse;
             for (int i = 0; i < runners.Count && i < house.horses.Count; i++)
             {
-                runners[i].SetupHorseData(house.horses[i]);
+                HorseUIElement houseHorseData = house.horses[i];
+                HorseRunner runner = runners[i];
+
+                // Pasar datos base de la UI al corredor de la pista
+                runner.SetupHorseData(houseHorseData);
+
+                // 💉 2. INYECTAR MODIFICADORES REALES DEL MERCADO NEGRO
+                if (BlackMarketManager.Instance != null)
+                {
+                    string hName = houseHorseData.horseName;
+
+                    // Esteroides: +5% (0.05f) por unidad asignada
+                    int assignedSteroids = BlackMarketManager.Instance.assignedSteroidsToHorses.ContainsKey(hName)
+                        ? BlackMarketManager.Instance.assignedSteroidsToHorses[hName] : 0;
+                    runner.winProbabilityModifier = assignedSteroids * BlackMarketManager.Instance.steroidWinBoost;
+
+                    // Herraduras: -5% por unidad asignada
+                    int assignedHorseshoes = BlackMarketManager.Instance.assignedHorseshoesToHorses.ContainsKey(hName)
+                        ? BlackMarketManager.Instance.assignedHorseshoesToHorses[hName] : 0;
+                    runner.fallProbabilityModifier = -(assignedHorseshoes * BlackMarketManager.Instance.horseshoeFallReduction);
+                }
             }
         }
 
-        // 2. Precalcular el resultado y puestos de la carrera según probabilidades + ESTEROIDES
+        // 3. Precalcular el resultado y puestos de la carrera según probabilidades + ESTEROIDES
         PrecalculateRaceOutcome();
 
-        // 3. Posicionar caballos en parrilla y preparar waypoints
+        // 4. Posicionar caballos en parrilla, waypoints y calcular caída real (incluyendo HERRADURAS)
         for (int i = 0; i < runners.Count; i++)
         {
             if (i < spawnPoints.Count && spawnPoints[i] != null)
@@ -82,7 +102,7 @@ public class RaceManager : MonoBehaviour
             }
 
             runners[i].SetWaypoints(circuitWaypoints);
-            runners[i].ResetRunner();
+            runners[i].ResetRunner(); // Aquí dentro ya leerá el fallProbabilityModifier actualizado
         }
 
         StartCoroutine(StartCountdownRoutine());

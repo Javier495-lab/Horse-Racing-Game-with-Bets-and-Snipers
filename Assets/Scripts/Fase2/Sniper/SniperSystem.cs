@@ -12,6 +12,7 @@ public class SniperSystem : MonoBehaviour
     public InputActionReference shootAction;
     public InputActionReference zoomAction;
     public InputActionReference sprintAction;
+    public InputActionReference slowTimeAction;
 
     [Header("Munición")]
     public int maxAmmo = 5;
@@ -25,10 +26,7 @@ public class SniperSystem : MonoBehaviour
     public float mouseSensitivity = 0.1f;
 
     [Header("Límites de Rotación de Cámara (FPS Estático)")]
-    [Tooltip("Ángulo máximo hacia arriba y abajo desde la orientación inicial.")]
     public float pitchLimit = 45f;
-
-    [Tooltip("Ángulo máximo hacia la izquierda y derecha desde la orientación inicial.")]
     public float yawLimit = 60f;
 
     [Header("Sway (Movimiento Errático de la Mirilla)")]
@@ -73,9 +71,8 @@ public class SniperSystem : MonoBehaviour
     public bool hasBipodMod = false;
 
     [Header("Referencias de Reloj Mágico & VIP (Mercado Negro)")]
-    public InputActionReference slowTimeAction; // Acción de Input System vinculada a 'Ctrl'
     public Transform vipCameraTransform;         // Transform del puesto VIP en las gradas
-    public Image magicClockBarImage;             // Barra HUD para el Reloj Mágico
+    public Image magicClockBarImage;             // Barra HUD (Image Type: Filled) para el Reloj Mágico
     public float maxMagicClockTime = 5f;         // Segundos totales de uso del reloj
     private float currentMagicClockTime;
     private bool isUsingMagicClock = false;
@@ -110,7 +107,7 @@ public class SniperSystem : MonoBehaviour
         currentFOV = normalFOV;
         currentAmmo = maxAmmo;
 
-        // 🪄 3. POLVO MÁGICO: Aumentar MaxBreathTime si se compró
+        // 🪄 1. POLVO MÁGICO: Aumentar MaxBreathTime si se compró
         if (BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActivePolvoMagico)
         {
             maxBreathTime += BlackMarketManager.Instance.breathTimeIncrease;
@@ -119,7 +116,8 @@ public class SniperSystem : MonoBehaviour
 
         currentBreath = maxBreathTime;
 
-        if (BlackMarketManager.Instance != null)
+        // ⏱️ 2. RELOJ MÁGICO: Inicializar tiempo del Reloj Mágico
+        if (BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActiveMagicClock)
         {
             currentMagicClockTime = maxMagicClockTime;
         }
@@ -216,7 +214,7 @@ public class SniperSystem : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        // 🎟️ 5. ENTRADA VIP: Teletransportar cámara si se compró el pase
+        // 🎟️ 3. ENTRADA VIP: Teletransportar cámara si se compró el pase
         if (BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActiveVipTicket)
         {
             if (vipCameraTransform != null)
@@ -314,6 +312,20 @@ public class SniperSystem : MonoBehaviour
         isHoldingBreath = false;
     }
 
+    private void OnSlowTimeStarted(InputAction.CallbackContext ctx)
+    {
+        if (BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActiveMagicClock && currentMagicClockTime > 0f)
+        {
+            isUsingMagicClock = true;
+            clockWasUsedInRace = true;
+        }
+    }
+
+    private void OnSlowTimeCanceled(InputAction.CallbackContext ctx)
+    {
+        isUsingMagicClock = false;
+    }
+
     // ==========================================
     // LÓGICA DE RESPIRACIÓN Y SWAY
     // ==========================================
@@ -369,11 +381,9 @@ public class SniperSystem : MonoBehaviour
 
         float fillRatio = currentBreath / maxBreathTime;
 
-        // Escalar en el eje X simétricamente (requiere que el Pivot de la Image esté en el centro: 0.5, 0.5)
         RectTransform rect = breathBarImage.rectTransform;
         rect.localScale = new Vector3(fillRatio, rect.localScale.y, rect.localScale.z);
 
-        // Color y parpadeo si se agotó
         if (breathDepleted)
         {
             float alpha = Mathf.PingPong(Time.time * blinkSpeed, 1f);
@@ -475,10 +485,14 @@ public class SniperSystem : MonoBehaviour
         isShootingOrReloading = true;
         currentAmmo--;
 
+        // ⏱️ Cancelar inmediatamente la habilidad del Reloj Mágico y restaurar velocidad normal
+        isUsingMagicClock = false;
+        Time.timeScale = 1f;
+
         // 1. Raycast de impacto
         PerformRaycastShoot();
 
-        // 2. FASE 1: Recoil manteniendo el estado de apuntar y la UI activa
+        // 2. FASE 1: Recoil
         float effectiveRecoil = hasBipodMod ? (baseRecoilAngle * 0.35f) : baseRecoilAngle;
         targetRecoilOffset = -effectiveRecoil;
         isRecounding = true;
@@ -486,17 +500,15 @@ public class SniperSystem : MonoBehaviour
         yield return new WaitForSeconds(recoilDuration);
 
         // 3. FASE 2: Fin de la mira y comienzo de la Recarga
-        StopAiming(); // Desactiva UI de la mira, restaura FOV normal y notifica a la UI de los caballos
+        StopAiming();
 
         if (playerAnimator != null)
         {
             playerAnimator.SetTrigger(reloadAnimTrigger);
         }
 
-        // Bloqueo de entrada durante la animación de recarga en vista estándar
         yield return new WaitForSeconds(reloadDuration);
 
-        // 4. Se devuelve el control al jugador. Si mantenía presionado el botón de apuntar, vuelve a apuntar
         isShootingOrReloading = false;
 
         if (aimAction != null && aimAction.action.IsPressed())
@@ -518,26 +530,18 @@ public class SniperSystem : MonoBehaviour
         }
     }
 
-    private void OnSlowTimeStarted(InputAction.CallbackContext ctx)
-    {
-        if (BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActiveMagicClock && currentMagicClockTime > 0f)
-        {
-            isUsingMagicClock = true;
-            clockWasUsedInRace = true;
-        }
-    }
+    // ==========================================
+    // LÓGICA Y BARRA REGRESIVA DEL RELOJ MÁGICO
+    // ==========================================
 
-    private void OnSlowTimeCanceled(InputAction.CallbackContext ctx)
-    {
-        isUsingMagicClock = false;
-    }
-
-    // Lógica de ralentización y consumo del Reloj:
     private void HandleMagicClock()
     {
-        if (BlackMarketManager.Instance == null || !BlackMarketManager.Instance.hasActiveMagicClock)
+        bool hasClock = BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActiveMagicClock;
+
+        if (!hasClock)
         {
             if (magicClockBarImage != null) magicClockBarImage.gameObject.SetActive(false);
+            Time.timeScale = 1f;
             return;
         }
 
@@ -546,33 +550,54 @@ public class SniperSystem : MonoBehaviour
             magicClockBarImage.gameObject.SetActive(true);
         }
 
-        if (isUsingMagicClock && currentMagicClockTime > 0f)
-        {
-            currentMagicClockTime -= Time.unscaledDeltaTime;
-            Time.timeScale = 0.3f; // Ralentiza la escena
+        // 🎯 REQUISITO: Estar apuntando, mantener Ctrl/habilidad Y NO estar disparando o recargando
+        bool inputPressed = slowTimeAction != null && slowTimeAction.action.IsPressed();
+        bool canUseClock = isAiming && !isShootingOrReloading && inputPressed && currentMagicClockTime > 0f;
 
-            if (currentMagicClockTime <= 0f)
-            {
-                currentMagicClockTime = 0f;
-                isUsingMagicClock = false;
-                Time.timeScale = 1f;
-            }
+        if (canUseClock)
+        {
+            isUsingMagicClock = true;
+            clockWasUsedInRace = true;
+            currentMagicClockTime -= Time.unscaledDeltaTime; // Descuenta tiempo real ignorando timeScale
+            Time.timeScale = 0.3f; // Ralentiza la escena
         }
         else
         {
+            isUsingMagicClock = false;
+            // Solo restaurar timeScale si no hay otro sistema modificándolo externamente
+            if (!canUseClock && Time.timeScale < 1f)
+            {
+                Time.timeScale = 1f;
+            }
+        }
+
+        if (currentMagicClockTime <= 0f)
+        {
+            currentMagicClockTime = 0f;
+            isUsingMagicClock = false;
             Time.timeScale = 1f;
         }
 
+        // 📊 ACTUALIZAR BARRA HUD
         if (magicClockBarImage != null)
         {
-            magicClockBarImage.fillAmount = currentMagicClockTime / maxMagicClockTime;
+            float fillRatio = currentMagicClockTime / maxMagicClockTime;
+
+            if (magicClockBarImage.type == Image.Type.Filled)
+            {
+                magicClockBarImage.fillAmount = fillRatio;
+            }
+            else
+            {
+                RectTransform rect = magicClockBarImage.rectTransform;
+                rect.localScale = new Vector3(fillRatio, rect.localScale.y, rect.localScale.z);
+            }
         }
     }
 
-    // Al salir de la escena de carrera, notificar al gestor si se usó o no:
     private void OnDestroy()
     {
-        Time.timeScale = 1f; // Restaurar escala normal por seguridad
+        Time.timeScale = 1f; // Garantizar restablecimiento de la velocidad del juego al cambiar de escena
         if (BlackMarketManager.Instance != null)
         {
             BlackMarketManager.Instance.NotifyRaceFinished(clockWasUsedInRace);

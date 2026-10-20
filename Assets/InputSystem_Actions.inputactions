@@ -61,6 +61,15 @@
                     "initialStateCheck": false
                 },
                 {
+                    "name": "TimeShooting",
+                    "type": "Button",
+                    "id": "7251f867-9d7a-425d-9366-4fccda0b9344",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "Zoom",
                     "type": "Value",
                     "id": "6f44612d-41f8-43cc-9cb3-ef7496a116ff",
@@ -139,11 +148,33 @@
                 },
                 {
                     "name": "",
+                    "id": "6b442a27-60b8-42ee-ba15-768ec6e82914",
+                    "path": "<Gamepad>/buttonEast",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
+                    "action": "Interact",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "6c5d8835-7e4f-42b1-a0c6-dbab35980e59",
                     "path": "<Keyboard>/shift",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
+                    "action": "Sprint",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "27cfbb73-4dbe-4531-b76e-37d7dfe0a6df",
+                    "path": "<Gamepad>/leftStick/down",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad",
                     "action": "Sprint",
                     "isComposite": false,
                     "isPartOfComposite": false
@@ -173,7 +204,7 @@
                 {
                     "name": "",
                     "id": "9eda6c53-8774-42ae-b7e9-bcca14c9a9a6",
-                    "path": "<Mouse>/rightButton",
+                    "path": "<Gamepad>/leftTrigger",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
@@ -205,22 +236,33 @@
                 },
                 {
                     "name": "",
-                    "id": "17b6b303-7653-4c3b-8214-99f4567b4e98",
-                    "path": "<Mouse>/scroll/y",
+                    "id": "48e5d168-1104-46e5-9cd3-1c23f791feaa",
+                    "path": "<Keyboard>/ctrl",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Keyboard&Mouse",
-                    "action": "Zoom",
+                    "action": "TimeShooting",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },
                 {
                     "name": "",
-                    "id": "717e09f6-5cd6-4f98-b463-b5a41bc9fe83",
+                    "id": "6872b2c7-c2de-43fa-a59c-3b36bb049740",
                     "path": "<Gamepad>/leftShoulder",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad",
+                    "action": "TimeShooting",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "17b6b303-7653-4c3b-8214-99f4567b4e98",
+                    "path": "<Mouse>/scroll/y",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Keyboard&Mouse",
                     "action": "Zoom",
                     "isComposite": false,
                     "isPartOfComposite": false

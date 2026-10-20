@@ -9,38 +9,50 @@ public class HorseUIElement
 {
     [Header("Datos del Caballo")]
     public string horseName = "Caballo";
-    [Range(0.01f, 1f)] public float winProbability = 0.125f; // Probabilidad base (12.5%)
+    public Sprite horsePortrait;
+    [Range(0.01f, 1f)] public float winProbability = 0.125f;
+
+    [Header("Probabilidad de Caída Base (%)")]
+    [Tooltip("Porcentaje base de caída calculado automáticamente según la media de la casa.")]
+    [Range(0f, 100f)] public float baseFallProbability = 5.0f;
+
     public float currentBet = 0f;
 
     [Header("Modificadores Individuales")]
-    public float winProbabilityModifier = 0f;  // ej. +0.05f (+5%)
-    public float fallProbabilityModifier = 0f; // ej. -3.0f (-3%)
+    public float winProbabilityModifier = 0f;
+    public float fallProbabilityModifier = 0f;
 
     [Header("Referencias UI Locales")]
     public GameObject panelRoot;
-    public TextMeshProUGUI infoText;      // Muestra: Nombre, %, Cuotas (1º, 2º, 3º)
-    public TextMeshProUGUI betText;       // Muestra: "Apuesta: 100$"
-    public Button selectButton;          // Botón principal del caballo
-    public GameObject controlsGroup;     // Contenedor de los botones + / -
+    public TextMeshProUGUI infoText;
+    public TextMeshProUGUI betText;
+    public Button selectButton;
+    public GameObject controlsGroup;
     public Button plusButton;
     public Button minusButton;
 
-    // Multiplicadores calculados
     [HideInInspector] public float mult1st;
     [HideInInspector] public float mult2nd;
     [HideInInspector] public float mult3rd;
 }
 
-// ============================================================================
-// CLASE PRINCIPAL DE LA CASA DE APUESTAS
-// ============================================================================
 public class BettingHouseUI : MonoBehaviour
 {
     [Header("Configuración de esta Casa")]
     public string houseName = "Casa de Apuestas";
-    public string trackSceneName = "Track_Casa1"; // Escena vinculada
+    public string trackSceneName = "Track_Casa1";
     public float betStep = 100f;
     public float maxBetLimit = 5000f;
+
+    [Header("Caída Base Predeterminada (Media de la Casa %)")]
+    [Range(0f, 100f)] public float houseBaseFallProbability = 7.5f;
+
+    [Header("Rango de Variación de Caída respecto a la Media")]
+    [Tooltip("Variación máxima individual respecto a la media de la casa (ej: 1.5 genera un rango [media - 1.5, media + 1.5])")]
+    public float fallProbabilitySpread = 1.5f;
+
+    [Header("Referencia al Mercado Negro")]
+    public BlackMarketUI blackMarketUI;
 
     [Header("Multiplicadores")]
     public float factor1st = 1.0f;
@@ -60,6 +72,7 @@ public class BettingHouseUI : MonoBehaviour
     {
         SetupUIEvents();
         RandomizeInitialProbabilities();
+        CalculateRandomFallProbabilities(); // 🎲 Genera caídas aleatorias individuales manteniendo la media exacta
         CalculateOdds();
         UpdateAllUI();
     }
@@ -110,6 +123,40 @@ public class BettingHouseUI : MonoBehaviour
         NormalizeProbabilities();
     }
 
+    /// <summary>
+    /// Genera probabilidades de caída individuales para los caballos cuya media sea exactamente houseBaseFallProbability.
+    /// Cada caballo tendrá una probabilidad en el rango [houseBaseFallProbability - 1.5, houseBaseFallProbability + 1.5].
+    /// </summary>
+    public void CalculateRandomFallProbabilities()
+    {
+        if (horses == null || horses.Count == 0) return;
+
+        int totalHorses = horses.Count;
+        float targetMean = houseBaseFallProbability;
+        float minAllowed = Mathf.Max(0f, targetMean - fallProbabilitySpread);
+        float maxAllowed = Mathf.Min(100f, targetMean + fallProbabilitySpread);
+
+        float requiredSum = targetMean * totalHorses;
+        float currentSum = 0f;
+
+        // 1. Asignar valores aleatorios dentro del rango a todos los caballos
+        for (int i = 0; i < totalHorses; i++)
+        {
+            float randomFall = UnityEngine.Random.Range(minAllowed, maxAllowed);
+            horses[i].baseFallProbability = randomFall;
+            currentSum += randomFall;
+        }
+
+        // 2. Ajuste fino para asegurar que la suma coincida exactamente con la media
+        float difference = requiredSum - currentSum;
+        float adjustmentPerHorse = difference / totalHorses;
+
+        for (int i = 0; i < totalHorses; i++)
+        {
+            horses[i].baseFallProbability = Mathf.Clamp(horses[i].baseFallProbability + adjustmentPerHorse, minAllowed, maxAllowed);
+        }
+    }
+
     private void NormalizeProbabilities()
     {
         float totalSum = 0f;
@@ -129,7 +176,6 @@ public class BettingHouseUI : MonoBehaviour
         {
             float risk = (1f - h.winProbability) / h.winProbability;
 
-            // CORREGIDO: Se añadió el operador '*' para multiplicar el riesgo por el factor correspondiente
             h.mult1st = 1f + (risk * factor1st);
             h.mult2nd = 1f + (risk * factor2nd);
             h.mult3rd = 1f + (risk * factor3rd);
@@ -198,6 +244,14 @@ public class BettingHouseUI : MonoBehaviour
         {
             SetStatus($"¡Apuesta de {total}$ confirmada!");
             selectedHorseIndex = -1;
+
+            if (blackMarketUI != null)
+            {
+                blackMarketUI.currentHouseUI = this;
+                blackMarketUI.SyncWithBettingHouse();
+                blackMarketUI.RefreshMarketUI();
+            }
+
             UpdateAllUI();
 
             BetScreen screen = GetComponentInParent<BetScreen>();
