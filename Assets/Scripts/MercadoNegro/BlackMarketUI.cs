@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -88,7 +89,6 @@ public class BlackMarketUI : MonoBehaviour
     public TextMeshProUGUI countHorseshoeText;
 
     [Header("Control de Progresión / Desbloqueo (Inspector / Código)")]
-    [Tooltip("Activa o desactiva la presencia del objeto en la tienda según la progresión del juego")]
     public bool isPolvoMagicoAvailable = true;
     public bool isVipAvailable = true;
     public bool isMagicClockAvailable = true;
@@ -126,7 +126,7 @@ public class BlackMarketUI : MonoBehaviour
     [TextArea] public string descSteroid = "Suministra esteroides a un caballo apostado para aumentar su probabilidad de victoria.";
     [TextArea] public string descHorseshoe = "Equipa herraduras a un caballo apostado para reducir drásticamente el riesgo de caída.";
 
-    [Header("Sprites de los Artículos (Para el panel de descripción)")]
+    [Header("Sprites de los Artículos")]
     public Sprite spritePolvoMagico;
     public Sprite spriteVip;
     public Sprite spriteMagicClock;
@@ -256,7 +256,6 @@ public class BlackMarketUI : MonoBehaviour
         {
             button.onClick.RemoveAllListeners();
             button.onClick.AddListener(buyAction);
-
             AddHoverTrigger(button.gameObject, itemName, itemSprite, description);
         }
 
@@ -284,26 +283,14 @@ public class BlackMarketUI : MonoBehaviour
 
     private void ShowShopDescription(string title, Sprite sprite, string description, bool show)
     {
-        if (shopDescriptionPanel != null)
-        {
-            shopDescriptionPanel.SetActive(show);
-        }
-
-        if (descriptionTitleText != null)
-        {
-            descriptionTitleText.text = show ? title : "";
-        }
-
+        if (shopDescriptionPanel != null) shopDescriptionPanel.SetActive(show);
+        if (descriptionTitleText != null) descriptionTitleText.text = show ? title : "";
         if (descriptionItemImage != null)
         {
             descriptionItemImage.gameObject.SetActive(show && sprite != null);
             descriptionItemImage.sprite = sprite;
         }
-
-        if (descriptionItemText != null)
-        {
-            descriptionItemText.text = show ? description : "";
-        }
+        if (descriptionItemText != null) descriptionItemText.text = show ? description : "";
     }
 
     private int GetCalculatedPrice(int basePrice)
@@ -329,10 +316,40 @@ public class BlackMarketUI : MonoBehaviour
     {
         if (BlackMarketManager.Instance != null)
         {
+            string houseKey = BlackMarketManager.Instance.GetCurrentHouseKey();
             bool success = BlackMarketManager.Instance.BuyItem(itemType, finalPrice);
+
             if (success)
             {
                 RefreshMarketUI();
+            }
+            else
+            {
+                // Si la compra falla por inventario lleno / límite alcanzado, activamos el glitch en su respectivo texto
+                if (itemType == "Esteroides")
+                {
+                    int owned = BlackMarketManager.Instance.GetSteroidsOwned(houseKey);
+                    int assigned = GetTotalAssigned(BlackMarketManager.Instance.assignedSteroidsToHorses);
+                    int free = owned - assigned;
+                    int bought = BlackMarketManager.Instance.GetSessionPurchasedSteroids(houseKey);
+
+                    if (free >= 3 || bought >= 3)
+                    {
+                        StartCoroutine(GlitchTextEffect(countSteroidText));
+                    }
+                }
+                else if (itemType == "Herradura")
+                {
+                    int owned = BlackMarketManager.Instance.GetHorseshoesOwned(houseKey);
+                    int assigned = GetTotalAssigned(BlackMarketManager.Instance.assignedHorseshoesToHorses);
+                    int free = owned - assigned;
+                    int bought = BlackMarketManager.Instance.GetSessionPurchasedHorseshoes(houseKey);
+
+                    if (free >= 3 || bought >= 3)
+                    {
+                        StartCoroutine(GlitchTextEffect(countHorseshoeText));
+                    }
+                }
             }
         }
     }
@@ -349,10 +366,12 @@ public class BlackMarketUI : MonoBehaviour
 
         if (currentAssigned > 0)
         {
+            // Quitar del caballo (devuelve 1 al stock libre)
             BlackMarketManager.Instance.assignedSteroidsToHorses[hName] = currentAssigned - 1;
         }
         else
         {
+            // Poner al caballo (consume 1 del stock libre)
             int ownedSteroids = BlackMarketManager.Instance.GetSteroidsOwned(houseKey);
             int totalAssigned = GetTotalAssigned(BlackMarketManager.Instance.assignedSteroidsToHorses);
             int freeSteroids = ownedSteroids - totalAssigned;
@@ -378,10 +397,12 @@ public class BlackMarketUI : MonoBehaviour
 
         if (currentAssigned > 0)
         {
+            // Quitar del caballo (devuelve 1 al stock libre)
             BlackMarketManager.Instance.assignedHorseshoesToHorses[hName] = currentAssigned - 1;
         }
         else
         {
+            // Poner al caballo (consume 1 del stock libre)
             int ownedHorseshoes = BlackMarketManager.Instance.GetHorseshoesOwned(houseKey);
             int totalAssigned = GetTotalAssigned(BlackMarketManager.Instance.assignedHorseshoesToHorses);
             int freeHorseshoes = ownedHorseshoes - totalAssigned;
@@ -411,6 +432,7 @@ public class BlackMarketUI : MonoBehaviour
         bool hasPolvo = BlackMarketManager.Instance.GetPolvoMagicoOwned(houseKey);
         bool hasVip = BlackMarketManager.Instance.GetVipOwned(houseKey);
         bool hasClock = BlackMarketManager.Instance.GetMagicClockOwned(houseKey);
+
         int ownedSteroids = BlackMarketManager.Instance.GetSteroidsOwned(houseKey);
         int ownedHorseshoes = BlackMarketManager.Instance.GetHorseshoesOwned(houseKey);
 
@@ -420,28 +442,41 @@ public class BlackMarketUI : MonoBehaviour
         int freeSteroids = ownedSteroids - assignedSteroidsTotal;
         int freeHorseshoes = ownedHorseshoes - assignedHorseshoesTotal;
 
+        int sessionBoughtSteroids = BlackMarketManager.Instance.GetSessionPurchasedSteroids(houseKey);
+        int sessionBoughtHorseshoes = BlackMarketManager.Instance.GetSessionPurchasedHorseshoes(houseKey);
+
         if (statusText != null)
         {
             statusText.text = $"Esteroides Libres: {freeSteroids} | Herraduras Libres: {freeHorseshoes}";
         }
 
+        // 📊 TEXTOS DE CANTIDAD EN TIENDA (Mostrando Inventario Libre / 3)
         if (countPolvoMagicoText != null) countPolvoMagicoText.text = hasPolvo ? "1/1" : "0/1";
         if (countVipText != null) countVipText.text = hasVip ? "1/1" : "0/1";
         if (countMagicClockText != null) countMagicClockText.text = hasClock ? "1/1" : "0/1";
-        if (countSteroidText != null) countSteroidText.text = $"{ownedSteroids}/3";
-        if (countHorseshoeText != null) countHorseshoeText.text = $"{ownedHorseshoes}/3";
 
+        if (countSteroidText != null) countSteroidText.text = $"{freeSteroids}/3";
+        if (countHorseshoeText != null) countHorseshoeText.text = $"{freeHorseshoes}/3";
+
+        // 🎯 LÓGICA DE DISPONIBILIDAD Y SOLD OUT:
+        // El "Sold Out" aparece SOLO cuando se han comprado 3 unidades en esta ronda (sessionBought >= 3).
+        // Se puede comprar si hay espacio libre (< 3), no se han comprado 3 en la ronda y hay dinero.
         bool canBuyPolvo = isPolvoMagicoAvailable && !hasPolvo;
         bool canBuyVip = isVipAvailable && !hasVip;
         bool canBuyClock = isMagicClockAvailable && !hasClock;
-        bool canBuySteroid = isSteroidAvailable && (ownedSteroids < 3);
-        bool canBuyHorseshoe = isHorseshoeAvailable && (ownedHorseshoes < 3);
+
+        bool isSteroidStockedOut = sessionBoughtSteroids >= 3;
+        bool isHorseshoeStockedOut = sessionBoughtHorseshoes >= 3;
+
+        bool canBuySteroid = isSteroidAvailable && (freeSteroids < 3) && (sessionBoughtSteroids < 3);
+        bool canBuyHorseshoe = isHorseshoeAvailable && (freeHorseshoes < 3) && (sessionBoughtHorseshoes < 3);
 
         UpdateShopButton(buyPolvoMagicoButton, canBuyPolvo, hasPolvo, GetCalculatedPrice(basePricePolvoMagico));
         UpdateShopButton(buyVipButton, canBuyVip, hasVip, GetCalculatedPrice(basePriceVip));
         UpdateShopButton(buyMagicClockButton, canBuyClock, hasClock, GetCalculatedPrice(basePriceMagicClock));
-        UpdateShopButton(buySteroidButton, canBuySteroid, ownedSteroids >= 3, GetCalculatedPrice(basePriceSteroid));
-        UpdateShopButton(buyHorseshoeButton, canBuyHorseshoe, ownedHorseshoes >= 3, GetCalculatedPrice(basePriceHorseshoe));
+
+        UpdateShopButton(buySteroidButton, canBuySteroid, isSteroidStockedOut, GetCalculatedPrice(basePriceSteroid));
+        UpdateShopButton(buyHorseshoeButton, canBuyHorseshoe, isHorseshoeStockedOut, GetCalculatedPrice(basePriceHorseshoe));
 
         for (int i = 0; i < marketHorses.Count; i++)
         {
@@ -467,7 +502,6 @@ public class BlackMarketUI : MonoBehaviour
                     slot.horseSpriteImage.color = isBetPlaced ? Color.white : unbetHorseColor;
                 }
 
-                // 💥 CALCULAR CAÍDA BASE DESDE HORSE DATA O DESDE LA CASA DE APUESTAS
                 float baseFall = horseData.baseFallProbability > 0 ? horseData.baseFallProbability : currentHouseUI.houseBaseFallProbability;
 
                 if (!isBetPlaced)
@@ -489,7 +523,6 @@ public class BlackMarketUI : MonoBehaviour
                 float modifiedWin = baseWin + (assignedSteroids * BlackMarketManager.Instance.steroidWinBoost);
                 float modifiedFall = Mathf.Max(0f, baseFall - (assignedHorseshoes * BlackMarketManager.Instance.horseshoeFallReduction));
 
-                // Guardar los modificadores en la estructura local del caballo
                 horseData.winProbabilityModifier = assignedSteroids * BlackMarketManager.Instance.steroidWinBoost;
                 horseData.fallProbabilityModifier = -(assignedHorseshoes * BlackMarketManager.Instance.horseshoeFallReduction);
 
@@ -539,19 +572,19 @@ public class BlackMarketUI : MonoBehaviour
         if (button == null) return;
 
         bool playerHasMoney = GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.playerMoney >= price;
-        bool isAvailable = canBePurchased && playerHasMoney && !isFullyStockedOut;
 
-        button.interactable = isAvailable;
+        // El botón se mantiene interactuable a menos que esté completamente Sold Out
+        button.interactable = !isFullyStockedOut;
 
         Image btnImage = button.GetComponent<Image>();
         if (btnImage != null)
         {
             btnImage.raycastTarget = !isFullyStockedOut;
-            btnImage.color = isAvailable ? availableButtonColor : unavailableButtonColor;
+            btnImage.color = isFullyStockedOut ? unavailableButtonColor : availableButtonColor;
         }
 
         ColorBlock colors = button.colors;
-        colors.pressedColor = isAvailable ? Color.green : Color.red;
+        colors.pressedColor = isFullyStockedOut ? Color.red : Color.green;
         button.colors = colors;
 
         TextMeshProUGUI btnText = button.GetComponentInChildren<TextMeshProUGUI>();
@@ -562,16 +595,47 @@ public class BlackMarketUI : MonoBehaviour
                 btnText.color = Color.white;
                 btnText.text = "Sold Out";
             }
-            else if (!canBePurchased)
-            {
-                btnText.color = Color.white;
-                btnText.text = "No Disponible";
-            }
             else
             {
+                // Mantiene el botón regular de compra con su precio (rojo si falta dinero, blanco si se puede permitir)
                 btnText.color = playerHasMoney ? Color.white : Color.red;
                 btnText.text = $"{price}$";
             }
         }
+    }
+
+    private IEnumerator GlitchTextEffect(TextMeshProUGUI textComp)
+    {
+        if (textComp == null) yield break;
+
+        Color originalColor = textComp.color;
+        Vector2 originalPos = textComp.rectTransform.anchoredPosition;
+        Vector3 originalScale = textComp.rectTransform.localScale;
+
+        float elapsed = 0f;
+        float duration = 0.5f;
+
+        textComp.color = Color.red;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+
+            // Desplazamiento errático de posición
+            float randomX = originalPos.x + UnityEngine.Random.Range(-8f, 8f);
+            float randomY = originalPos.y + UnityEngine.Random.Range(-8f, 8f);
+            textComp.rectTransform.anchoredPosition = new Vector2(randomX, randomY);
+
+            // Variación errática de escala
+            float randomScale = UnityEngine.Random.Range(0.85f, 1.15f);
+            textComp.rectTransform.localScale = originalScale * randomScale;
+
+            yield return null;
+        }
+
+        // Restaurar estado original tras 0.5 segundos
+        textComp.rectTransform.anchoredPosition = originalPos;
+        textComp.rectTransform.localScale = originalScale;
+        textComp.color = originalColor;
     }
 }

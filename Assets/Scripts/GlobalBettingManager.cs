@@ -13,6 +13,9 @@ public class GlobalBettingManager : MonoBehaviour
         public float mult1st;
         public float mult2nd;
         public float mult3rd;
+        public Sprite horsePortrait;    
+        public float winProbability; 
+        public float fallProbability;
     }
 
     [Header("Economía Global")]
@@ -106,10 +109,13 @@ public class GlobalBettingManager : MonoBehaviour
                     amount = h.currentBet,
                     mult1st = h.mult1st,
                     mult2nd = h.mult2nd,
-                    mult3rd = h.mult3rd
+                    mult3rd = h.mult3rd,
+                    horsePortrait = h.horsePortrait,    
+                    winProbability = h.winProbability,   
+                    fallProbability = h.baseFallProbability  
                 };
                 currentActiveBets.Add(bet);
-                Debug.Log($"[GlobalBettingManager] Apuesta guardada: {h.currentBet}$ a {h.horseName} (1º:{h.mult1st:F2}x, 2º:{h.mult2nd:F2}x, 3º:{h.mult3rd:F2}x)");
+                Debug.Log($"[GlobalBettingManager] Apuesta guardada: {h.currentBet}$ a {h.horseName}");
             }
         }
 

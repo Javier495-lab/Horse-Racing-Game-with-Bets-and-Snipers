@@ -6,7 +6,13 @@ public class HorseUIIdentifier : MonoBehaviour
 {
     [Header("Referencias del Caballo")]
     public HorseRunner horseRunner;
-    public Vector3 offset = new Vector3(0f, 2.5f, 0f);
+
+    [Header("Configuración de Offset (Altura del Identificador)")]
+    [Tooltip("Offset aplicado en carreras estándar.")]
+    public Vector3 standardOffset = new Vector3(0f, 2.5f, 0f);
+    [Tooltip("Offset aplicado si se compró la Entrada VIP (vistas desde las gradas).")]
+    public Vector3 vipOffset = new Vector3(0f, 4.0f, 0f);
+    private Vector3 activeOffset;
 
     [Header("Elementos de UI")]
     public CanvasGroup canvasGroup;
@@ -34,17 +40,22 @@ public class HorseUIIdentifier : MonoBehaviour
             horseRunner = GetComponentInParent<HorseRunner>();
 
         if (statusIconRoot != null) statusIconRoot.SetActive(false);
+
+        // 🎟️ Comprobar si el jugador compró la Entrada VIP para aplicar su offset correspondiente
+        bool isVipActive = BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActiveVipTicket;
+        activeOffset = isVipActive ? vipOffset : standardOffset;
+
         UpdateStaticHorseData();
     }
 
     private void OnEnable()
     {
-        SniperSystem.OnAimStateChanged += HandleAimState;
+        //SniperSystem.OnAimStateChanged += HandleAimState;
     }
 
     private void OnDisable()
     {
-        SniperSystem.OnAimStateChanged -= HandleAimState;
+        //SniperSystem.OnAimStateChanged -= HandleAimState;
     }
 
     private void UpdateStaticHorseData()
@@ -62,8 +73,8 @@ public class HorseUIIdentifier : MonoBehaviour
     {
         if (horseRunner == null) return;
 
-        // 1. Posicionar y orientar hacia la cámara
-        transform.position = horseRunner.transform.position + offset;
+        // 1. Posicionar y orientar hacia la cámara usando el offset activo (Estándar o VIP)
+        transform.position = horseRunner.transform.position + activeOffset;
 
         if (mainCameraTransform != null)
         {
@@ -111,7 +122,7 @@ public class HorseUIIdentifier : MonoBehaviour
         }
     }
 
-    private void HandleAimState(bool isAiming, bool hasIdentifierMod)
+    /*private void HandleAimState(bool isAiming, bool hasIdentifierMod)
     {
         if (canvasGroup == null) return;
 
@@ -124,5 +135,5 @@ public class HorseUIIdentifier : MonoBehaviour
         {
             canvasGroup.alpha = 1f;
         }
-    }
+    }*/
 }

@@ -26,8 +26,15 @@ public class SniperSystem : MonoBehaviour
     public float mouseSensitivity = 0.1f;
 
     [Header("Límites de Rotación de Cámara (FPS Estático)")]
-    public float pitchLimit = 45f;
-    public float yawLimit = 60f;
+    public float standardPitchLimit = 45f;
+    public float standardYawLimit = 60f;
+
+    [Header("Límites de Rotación en Gradas VIP (Opcional)")]
+    public float vipPitchLimit = 60f; // Límites más amplios o ajustados para la posición VIP
+    public float vipYawLimit = 90f;
+
+    private float activePitchLimit;
+    private float activeYawLimit;
 
     [Header("Sway (Movimiento Errático de la Mirilla)")]
     public float swayIntensity = 1.5f;
@@ -57,8 +64,14 @@ public class SniperSystem : MonoBehaviour
     public string reloadAnimTrigger = "Reload";
     public float reloadDuration = 2.0f;
 
-    [Header("UI del Sniper")]
+    [Header("UI del Sniper & Punteros (Crosshairs)")]
     public GameObject sniperScopeUI;
+    [Tooltip("Imagen del puntero estándar (activa por defecto al apuntar)")]
+    public GameObject defaultCrosshairImage;
+    [Tooltip("Imagen del puntero alternativo (se activa al apuntar a un caballo)")]
+    public GameObject targetCrosshairImage;
+    [Tooltip("Distancia máxima del raycast para detectar un caballo con la mira")]
+    public float targetDetectionRange = 500f;
 
     [Header("--- MODIFICADORES / DESBLOQUEABLES ---")]
     public bool hasZoomMod = false;
@@ -214,15 +227,17 @@ public class SniperSystem : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        // 🎟️ 3. ENTRADA VIP: Teletransportar cámara si se compró el pase
-        if (BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActiveVipTicket)
+        // 🎟️ 3. ENTRADA VIP: Teletransportar cámara y ajustar límites si se compró el pase
+        bool isVipActive = BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActiveVipTicket;
+
+        activePitchLimit = isVipActive ? vipPitchLimit : standardPitchLimit;
+        activeYawLimit = isVipActive ? vipYawLimit : standardYawLimit;
+
+        if (isVipActive && vipCameraTransform != null)
         {
-            if (vipCameraTransform != null)
-            {
-                transform.position = vipCameraTransform.position;
-                transform.rotation = vipCameraTransform.rotation;
-                Debug.Log("[SniperSystem] Entrada VIP activa: Cámara posicionada en las gradas VIP.");
-            }
+            transform.position = vipCameraTransform.position;
+            transform.rotation = vipCameraTransform.rotation;
+            Debug.Log("[SniperSystem] Entrada VIP activa: Cámara posicionada en las gradas VIP y límites ajustados.");
         }
 
         Vector3 initialEuler = transform.eulerAngles;
@@ -235,11 +250,17 @@ public class SniperSystem : MonoBehaviour
         if (sniperScopeUI != null) sniperScopeUI.SetActive(false);
         if (breathBarImage != null) breathBarImage.gameObject.SetActive(false);
         if (magicClockBarImage != null) magicClockBarImage.gameObject.SetActive(false);
+        UpdateCrosshairsUI(false, false);
     }
 
     private void Update()
     {
         HandleBreathAndSwayState();
+
+        if (isAiming)
+        {
+            CheckTargetingHorse();
+        }
 
         if (isShootingOrReloading)
         {
@@ -404,8 +425,8 @@ public class SniperSystem : MonoBehaviour
         yaw += lookInput.x * mouseSensitivity;
         pitch += lookInput.y * mouseSensitivity;
 
-        pitch = Mathf.Clamp(pitch, initialPitch - pitchLimit, initialPitch + pitchLimit);
-        yaw = Mathf.Clamp(yaw, initialYaw - yawLimit, initialYaw + yawLimit);
+        pitch = Mathf.Clamp(pitch, initialPitch - activePitchLimit, initialPitch + activePitchLimit);
+        yaw = Mathf.Clamp(yaw, initialYaw - activeYawLimit, initialYaw + activeYawLimit);
 
         float finalPitch = pitch + (swayOffset.x * currentSwayWeight) + currentRecoilOffset;
         float finalYaw = yaw + (swayOffset.y * currentSwayWeight);
@@ -461,6 +482,7 @@ public class SniperSystem : MonoBehaviour
         currentFOV = baseAimFOV;
 
         if (sniperScopeUI != null) sniperScopeUI.SetActive(true);
+        UpdateCrosshairsUI(true, false); // Activar mira estándar por defecto
 
         OnAimStateChanged?.Invoke(true, hasIdentifierMod);
     }
@@ -472,8 +494,53 @@ public class SniperSystem : MonoBehaviour
         currentFOV = normalFOV;
 
         if (sniperScopeUI != null) sniperScopeUI.SetActive(false);
+        UpdateCrosshairsUI(false, false); // Apagar ambas
 
         OnAimStateChanged?.Invoke(false, hasIdentifierMod);
+    }
+
+    // ==========================================
+    // DETECCIÓN DE CABALLO CON LA MIRA
+    // ==========================================
+
+    private void CheckTargetingHorse()
+    {
+        if (mainCamera == null) return;
+
+        Ray ray = mainCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+        bool aimingAtHorse = false;
+
+        if (Physics.Raycast(ray, out RaycastHit hit, targetDetectionRange))
+        {
+            HorseRunner targetHorse = hit.collider.GetComponentInParent<HorseRunner>();
+            if (targetHorse != null && !targetHorse.hasFallen && !targetHorse.hasBeenShot && !targetHorse.hasFinished)
+            {
+                aimingAtHorse = true;
+            }
+        }
+
+        // Alternar entre el puntero estándar y el puntero de objetivo fijado
+        UpdateCrosshairsUI(true, aimingAtHorse);
+    }
+
+    private void UpdateCrosshairsUI(bool scopeActive, bool targetingHorse)
+    {
+        if (!scopeActive)
+        {
+            if (defaultCrosshairImage != null) defaultCrosshairImage.SetActive(false);
+            if (targetCrosshairImage != null) targetCrosshairImage.SetActive(false);
+            return;
+        }
+
+        if (defaultCrosshairImage != null)
+        {
+            defaultCrosshairImage.SetActive(!targetingHorse);
+        }
+
+        if (targetCrosshairImage != null)
+        {
+            targetCrosshairImage.SetActive(targetingHorse);
+        }
     }
 
     // ==========================================

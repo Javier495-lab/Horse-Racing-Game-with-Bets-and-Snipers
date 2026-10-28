@@ -20,6 +20,20 @@ public class BlackMarketManager : MonoBehaviour
     private Dictionary<string, bool> purchasedPolvoMagicoPerHouse = new Dictionary<string, bool>();
     private Dictionary<string, bool> purchasedVipTicketPerHouse = new Dictionary<string, bool>();
 
+    // Añadir estos diccionarios junto a los demás en BlackMarketManager.cs
+    private Dictionary<string, int> totalPurchasedSteroidsCountPerHouse = new Dictionary<string, int>();
+    private Dictionary<string, int> totalPurchasedHorseshoesCountPerHouse = new Dictionary<string, int>();
+
+    // Métodos públicos para consultar cuántos se han comprado en total en la casa actual
+    public int GetTotalPurchasedSteroids(string houseKey) => totalPurchasedSteroidsCountPerHouse.ContainsKey(houseKey) ? totalPurchasedSteroidsCountPerHouse[houseKey] : 0;
+    public int GetTotalPurchasedHorseshoes(string houseKey) => totalPurchasedHorseshoesCountPerHouse.ContainsKey(houseKey) ? totalPurchasedHorseshoesCountPerHouse[houseKey] : 0;
+
+    private Dictionary<string, int> sessionPurchasedSteroids = new Dictionary<string, int>();
+    private Dictionary<string, int> sessionPurchasedHorseshoes = new Dictionary<string, int>();
+
+    public int GetSessionPurchasedSteroids(string houseKey) => sessionPurchasedSteroids.ContainsKey(houseKey) ? sessionPurchasedSteroids[houseKey] : 0;
+    public int GetSessionPurchasedHorseshoes(string houseKey) => sessionPurchasedHorseshoes.ContainsKey(houseKey) ? sessionPurchasedHorseshoes[houseKey] : 0;
+
     // Asignación activa por caballo apostado para la carrera en curso (Key: Nombre del caballo -> Cantidad)
     public Dictionary<string, int> assignedSteroidsToHorses = new Dictionary<string, int>();
     public Dictionary<string, int> assignedHorseshoesToHorses = new Dictionary<string, int>();
@@ -28,6 +42,9 @@ public class BlackMarketManager : MonoBehaviour
     public bool hasActivePolvoMagico = false;
     public bool hasActiveVipTicket = false;
     public bool hasActiveMagicClock = false;
+
+    // 🔑 Caché para recordar la última casa activa al cambiar de escena
+    private string cachedHouseKey = "DefaultHouse";
 
     private void Awake()
     {
@@ -46,9 +63,11 @@ public class BlackMarketManager : MonoBehaviour
     {
         if (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.currentHouse != null)
         {
-            return GlobalBettingManager.Instance.currentHouse.houseName;
+            cachedHouseKey = GlobalBettingManager.Instance.currentHouse.houseName;
+            return cachedHouseKey;
         }
-        return "DefaultHouse";
+        // Si estamos en la escena de carrera y currentHouse es null, devolvemos la última casa guardada
+        return !string.IsNullOrEmpty(cachedHouseKey) ? cachedHouseKey : "DefaultHouse";
     }
 
     public bool BuyItem(string itemType, int baseCost)
@@ -72,18 +91,36 @@ public class BlackMarketManager : MonoBehaviour
                 break;
 
             case "Esteroides":
-                int currentSteroids = GetSteroidsOwned(houseKey);
-                if (currentSteroids >= 3) return false; // Máximo 3 por ronda/casa
-                GlobalBettingManager.Instance.playerMoney -= finalCost;
-                purchasedSteroidsPerHouse[houseKey] = currentSteroids + 1;
-                break;
+                {
+                    int currentSteroids = GetSteroidsOwned(houseKey);
+                    int assignedSteroids = GetTotalAssigned(assignedSteroidsToHorses);
+                    int freeSteroids = currentSteroids - assignedSteroids;
+                    int sessionBought = GetSessionPurchasedSteroids(houseKey);
+
+                    // REQUISITO: Inventario libre lleno (>= 3) o límite de 3 compras en esta ronda alcanzado
+                    if (freeSteroids >= 3 || sessionBought >= 3) return false;
+
+                    GlobalBettingManager.Instance.playerMoney -= finalCost;
+                    purchasedSteroidsPerHouse[houseKey] = currentSteroids + 1;
+                    sessionPurchasedSteroids[houseKey] = sessionBought + 1;
+                    break;
+                }
 
             case "Herradura":
-                int currentHorseshoes = GetHorseshoesOwned(houseKey);
-                if (currentHorseshoes >= 3) return false; // Máximo 3 por ronda/casa
-                GlobalBettingManager.Instance.playerMoney -= finalCost;
-                purchasedHorseshoesPerHouse[houseKey] = currentHorseshoes + 1;
-                break;
+                {
+                    int currentHorseshoes = GetHorseshoesOwned(houseKey);
+                    int assignedHorseshoes = GetTotalAssigned(assignedHorseshoesToHorses);
+                    int freeHorseshoes = currentHorseshoes - assignedHorseshoes;
+                    int sessionBought = GetSessionPurchasedHorseshoes(houseKey);
+
+                    // REQUISITO: Inventario libre lleno (>= 3) o límite de 3 compras en esta ronda alcanzado
+                    if (freeHorseshoes >= 3 || sessionBought >= 3) return false;
+
+                    GlobalBettingManager.Instance.playerMoney -= finalCost;
+                    purchasedHorseshoesPerHouse[houseKey] = currentHorseshoes + 1;
+                    sessionPurchasedHorseshoes[houseKey] = sessionBought + 1;
+                    break;
+                }
 
             case "EntradaVIP":
                 if (GetVipOwned(houseKey)) return false;
@@ -113,8 +150,9 @@ public class BlackMarketManager : MonoBehaviour
     public void NotifyRaceFinished(bool clockWasUsed)
     {
         string houseKey = GetCurrentHouseKey();
+        Debug.Log($"[BlackMarket] Procesando fin de carrera para la casa: {houseKey}");
 
-        // 1. RELOJ MÁGICO: Se consume solo si fue utilizado durante la carrera
+        // 1. RELOJ MÁGICO: Se consume y se resetea SOLO si fue utilizado durante la carrera. Si no se usó, se mantiene comprado.
         if (clockWasUsed)
         {
             purchasedMagicClockPerHouse[houseKey] = false;
@@ -123,7 +161,7 @@ public class BlackMarketManager : MonoBehaviour
         }
         else
         {
-            Debug.Log("[BlackMarket] Reloj Mágico NO fue usado. Permanece disponible.");
+            Debug.Log("[BlackMarket] Reloj Mágico NO fue usado. Permanece comprado para la próxima vez.");
         }
 
         // 2. POLVO MÁGICO & ENTRADA VIP: Se resetean SIEMPRE tras cada carrera
@@ -132,23 +170,26 @@ public class BlackMarketManager : MonoBehaviour
         hasActivePolvoMagico = false;
         hasActiveVipTicket = false;
 
-        // 3. ESTEROIDES: Restar únicamente las unidades que se asignaron/usaron en la carrera
         int totalAssignedSteroids = GetTotalAssigned(assignedSteroidsToHorses);
         int currentSteroidsOwned = GetSteroidsOwned(houseKey);
         int remainingSteroids = Mathf.Max(0, currentSteroidsOwned - totalAssignedSteroids);
         purchasedSteroidsPerHouse[houseKey] = remainingSteroids;
 
-        // 4. HERRADURAS: Restar únicamente las unidades que se asignaron/usaron en la carrera
         int totalAssignedHorseshoes = GetTotalAssigned(assignedHorseshoesToHorses);
         int currentHorseshoesOwned = GetHorseshoesOwned(houseKey);
         int remainingHorseshoes = Mathf.Max(0, currentHorseshoesOwned - totalAssignedHorseshoes);
         purchasedHorseshoesPerHouse[houseKey] = remainingHorseshoes;
 
-        Debug.Log($"[BlackMarket] Resumen post-carrera para {houseKey} -> Steroids restantes: {remainingSteroids}, Horseshoes restantes: {remainingHorseshoes}");
+        // 🎯 IMPORTANTE: Si ya se han gastado/consumido las unidades en la carrera, 
+        // reseteamos el contador de compra total de la ronda para permitir comprar nuevos lotes si se desea.
+        if (remainingSteroids == 0) totalPurchasedSteroidsCountPerHouse[houseKey] = 0;
+        if (remainingHorseshoes == 0) totalPurchasedHorseshoesCountPerHouse[houseKey] = 0;
 
-        // 5. Limpiar los diccionarios de asignación por caballo para la siguiente ronda
         assignedSteroidsToHorses.Clear();
         assignedHorseshoesToHorses.Clear();
+
+        sessionPurchasedSteroids[houseKey] = 0;
+        sessionPurchasedHorseshoes[houseKey] = 0;
     }
 
     private int GetTotalAssigned(Dictionary<string, int> dict)
