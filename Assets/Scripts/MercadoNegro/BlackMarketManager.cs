@@ -4,6 +4,7 @@ using UnityEngine;
 public class BlackMarketManager : MonoBehaviour
 {
     public static BlackMarketManager Instance { get; private set; }
+    public Dictionary<string, bool> ownedAimBot = new Dictionary<string, bool>();
 
     [Header("Configuración de Precios Base")]
     public float basePriceMultiplier = 1.0f;
@@ -12,6 +13,16 @@ public class BlackMarketManager : MonoBehaviour
     public float breathTimeIncrease = 4f;       // Polvo Mágico: +4s al MaxBreathTime
     public float steroidWinBoost = 0.05f;      // Esteroides: +5% probabilidad de victoria por unidad
     public float horseshoeFallReduction = 5f;  // Herradura: -5% probabilidad de caída por unidad
+
+    [Header("Estado de Aim Bot")]
+    public Dictionary<string, bool> purchasedAimBotPerHouse = new Dictionary<string, bool>();
+    public bool hasActiveAimBot = false;
+
+    public bool GetAimBotOwned(string houseKey)
+    {
+        if (string.IsNullOrEmpty(houseKey)) return false;
+        return purchasedAimBotPerHouse.ContainsKey(houseKey) && purchasedAimBotPerHouse[houseKey];
+    }
 
     // Diccionarios para aislar compras por Casa de Apuestas (Key: Nombre de la Casa)
     private Dictionary<string, int> purchasedSteroidsPerHouse = new Dictionary<string, int>();
@@ -59,6 +70,8 @@ public class BlackMarketManager : MonoBehaviour
         }
     }
 
+
+
     public string GetCurrentHouseKey()
     {
         if (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.currentHouse != null)
@@ -90,11 +103,20 @@ public class BlackMarketManager : MonoBehaviour
                 hasActivePolvoMagico = true;
                 break;
 
+            case "AimBot":
+                if (GetAimBotOwned(houseKey)) return false;
+                if (GlobalBettingManager.Instance.playerMoney < finalCost) return false;
+
+                GlobalBettingManager.Instance.playerMoney -= finalCost;
+                purchasedAimBotPerHouse[houseKey] = true;
+                hasActiveAimBot = true;
+                return true;
+
             case "Esteroides":
                 {
                     int currentSteroids = GetSteroidsOwned(houseKey);
                     int assignedSteroids = GetTotalAssigned(assignedSteroidsToHorses);
-                    int freeSteroids = currentSteroids - assignedSteroids;
+                    int freeSteroids = currentSteroids - assignedSteroids; // (Signo menos restaurado)
                     int sessionBought = GetSessionPurchasedSteroids(houseKey);
 
                     // REQUISITO: Inventario libre lleno (>= 3) o límite de 3 compras en esta ronda alcanzado
@@ -110,7 +132,7 @@ public class BlackMarketManager : MonoBehaviour
                 {
                     int currentHorseshoes = GetHorseshoesOwned(houseKey);
                     int assignedHorseshoes = GetTotalAssigned(assignedHorseshoesToHorses);
-                    int freeHorseshoes = currentHorseshoes - assignedHorseshoes;
+                    int freeHorseshoes = currentHorseshoes - assignedHorseshoes; // (Signo menos restaurado)
                     int sessionBought = GetSessionPurchasedHorseshoes(houseKey);
 
                     // REQUISITO: Inventario libre lleno (>= 3) o límite de 3 compras en esta ronda alcanzado

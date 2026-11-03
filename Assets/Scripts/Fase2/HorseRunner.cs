@@ -42,6 +42,8 @@ public class HorseRunner : MonoBehaviour
     [SerializeField] private int totalCompetitors = 8;
     [SerializeField] private int currentSectorIndex = 0;
 
+    [Header("Datos de Apuesta en Carrera")]
+    public float currentBet = 0f;
     private Animator animator;
 
     private void Awake()
@@ -56,6 +58,8 @@ public class HorseRunner : MonoBehaviour
         }
         obstacle.enabled = false;
         obstacle.carving = true;
+
+        InitializeBetData();
     }
 
     public void SetupHorseData(HorseUIElement horseData)
@@ -289,6 +293,25 @@ public class HorseRunner : MonoBehaviour
         if (RaceManager.Instance != null)
         {
             RaceManager.Instance.OnHorseFinished(this);
+        }
+    }
+
+    public void InitializeBetData()
+    {
+        if (GlobalBettingManager.Instance != null)
+        {
+            // Buscar si este caballo tiene una apuesta activa guardada
+            var activeBet = GlobalBettingManager.Instance.currentActiveBets.Find(b =>
+                b.horseName.Trim().Equals(horseName.Trim(), System.StringComparison.OrdinalIgnoreCase));
+
+            if (activeBet != null)
+            {
+                currentBet = activeBet.amount;
+            }
+            else
+            {
+                currentBet = 0f;
+            }
         }
     }
 }

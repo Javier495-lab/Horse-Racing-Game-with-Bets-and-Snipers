@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using TMPro; // Asegurar referencia para textos si se usa TextMeshPro en el indicador flotante
 
 public class SniperSystem : MonoBehaviour
 {
@@ -15,6 +16,8 @@ public class SniperSystem : MonoBehaviour
     public InputActionReference slowTimeAction;
 
     [Header("Munición")]
+    public int standardMaxAmmo = 5;
+    public int advancedMaxAmmo = 6;
     public int maxAmmo = 5;
     public int currentAmmo;
 
@@ -30,7 +33,7 @@ public class SniperSystem : MonoBehaviour
     public float standardYawLimit = 60f;
 
     [Header("Límites de Rotación en Gradas VIP (Opcional)")]
-    public float vipPitchLimit = 60f; // Límites más amplios o ajustados para la posición VIP
+    public float vipPitchLimit = 60f;
     public float vipYawLimit = 90f;
 
     private float activePitchLimit;
@@ -82,11 +85,17 @@ public class SniperSystem : MonoBehaviour
     public bool hasStockMod = false;
     public bool hasIdentifierMod = false;
     public bool hasBipodMod = false;
+    public bool hasAdvancedSniper = false;
+
+    // 🎯 AIM BOT (Mercado Negro)
+    [Header("--- AIM BOT ---")]
+    public bool hasAimBot = false;
+    private Transform lockedTargetHorseTransform = null; // Caballo al que está fijado el Aim Bot
 
     [Header("Referencias de Reloj Mágico & VIP (Mercado Negro)")]
-    public Transform vipCameraTransform;         // Transform del puesto VIP en las gradas
-    public Image magicClockBarImage;             // Barra HUD (Image Type: Filled) para el Reloj Mágico
-    public float maxMagicClockTime = 5f;         // Segundos totales de uso del reloj
+    public Transform vipCameraTransform;
+    public Image magicClockBarImage;
+    public float maxMagicClockTime = 5f;
     private float currentMagicClockTime;
     private bool isUsingMagicClock = false;
     private bool clockWasUsedInRace = false;
@@ -111,6 +120,8 @@ public class SniperSystem : MonoBehaviour
     // Entrada del Input System
     private Vector2 lookInput;
 
+    private HorseRunner currentLookedAtHorse = null;
+
     public delegate void AimStateChanged(bool isAiming, bool hasIdentifierMod);
     public static event AimStateChanged OnAimStateChanged;
 
@@ -118,108 +129,56 @@ public class SniperSystem : MonoBehaviour
     {
         if (mainCamera == null) mainCamera = Camera.main;
         currentFOV = normalFOV;
-        currentAmmo = maxAmmo;
 
-        // 🪄 1. POLVO MÁGICO: Aumentar MaxBreathTime si se compró
+        // Sincronizar mejoras y munición desde el WeaponShopManager
+        if (WeaponShopManager.Instance != null)
+        {
+            WeaponShopManager.Instance.ApplyUpgradesToSniper(this);
+        }
+        else
+        {
+            currentAmmo = maxAmmo;
+        }
+
+        // 🪄 1. POLVO MÁGICO
         if (BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActivePolvoMagico)
         {
             maxBreathTime += BlackMarketManager.Instance.breathTimeIncrease;
-            Debug.Log($"[SniperSystem] Polvo Mágico activo. Nuevo MaxBreathTime: {maxBreathTime}s");
         }
 
         currentBreath = maxBreathTime;
 
-        // ⏱️ 2. RELOJ MÁGICO: Inicializar tiempo del Reloj Mágico
+        // ⏱️ 2. RELOJ MÁGICO
         if (BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActiveMagicClock)
         {
             currentMagicClockTime = maxMagicClockTime;
+        }
+
+        // 🎯 3. AIM BOT (Comprobar si se compró en el mercado negro para esta carrera)
+        if (BlackMarketManager.Instance != null)
+        {
+            hasAimBot = BlackMarketManager.Instance.GetAimBotOwned(BlackMarketManager.Instance.GetCurrentHouseKey());
         }
     }
 
     private void OnEnable()
     {
-        if (lookAction != null)
-        {
-            lookAction.action.Enable();
-            lookAction.action.performed += OnLookPerformed;
-            lookAction.action.canceled += OnLookCanceled;
-        }
-
-        if (aimAction != null)
-        {
-            aimAction.action.Enable();
-            aimAction.action.started += OnAimStarted;
-            aimAction.action.canceled += OnAimCanceled;
-        }
-
-        if (shootAction != null)
-        {
-            shootAction.action.Enable();
-            shootAction.action.started += OnShootStarted;
-        }
-
-        if (zoomAction != null)
-        {
-            zoomAction.action.Enable();
-            zoomAction.action.performed += OnZoomPerformed;
-        }
-
-        if (sprintAction != null)
-        {
-            sprintAction.action.Enable();
-            sprintAction.action.started += OnSprintStarted;
-            sprintAction.action.canceled += OnSprintCanceled;
-        }
-
-        if (slowTimeAction != null)
-        {
-            slowTimeAction.action.Enable();
-            slowTimeAction.action.started += OnSlowTimeStarted;
-            slowTimeAction.action.canceled += OnSlowTimeCanceled;
-        }
+        if (lookAction != null) { lookAction.action.Enable(); lookAction.action.performed += OnLookPerformed; lookAction.action.canceled += OnLookCanceled; }
+        if (aimAction != null) { aimAction.action.Enable(); aimAction.action.started += OnAimStarted; aimAction.action.canceled += OnAimCanceled; }
+        if (shootAction != null) { shootAction.action.Enable(); shootAction.action.started += OnShootStarted; }
+        if (zoomAction != null) { zoomAction.action.Enable(); zoomAction.action.performed += OnZoomPerformed; }
+        if (sprintAction != null) { sprintAction.action.Enable(); sprintAction.action.started += OnSprintStarted; sprintAction.action.canceled += OnSprintCanceled; }
+        if (slowTimeAction != null) { slowTimeAction.action.Enable(); slowTimeAction.action.started += OnSlowTimeStarted; slowTimeAction.action.canceled += OnSlowTimeCanceled; }
     }
 
     private void OnDisable()
     {
-        if (lookAction != null)
-        {
-            lookAction.action.performed -= OnLookPerformed;
-            lookAction.action.canceled -= OnLookCanceled;
-            lookAction.action.Disable();
-        }
-
-        if (aimAction != null)
-        {
-            aimAction.action.started -= OnAimStarted;
-            aimAction.action.canceled -= OnAimCanceled;
-            aimAction.action.Disable();
-        }
-
-        if (shootAction != null)
-        {
-            shootAction.action.started -= OnShootStarted;
-            shootAction.action.Disable();
-        }
-
-        if (zoomAction != null)
-        {
-            zoomAction.action.performed -= OnZoomPerformed;
-            zoomAction.action.Disable();
-        }
-
-        if (sprintAction != null)
-        {
-            sprintAction.action.started -= OnSprintStarted;
-            sprintAction.action.canceled -= OnSprintCanceled;
-            sprintAction.action.Disable();
-        }
-
-        if (slowTimeAction != null)
-        {
-            slowTimeAction.action.started -= OnSlowTimeStarted;
-            slowTimeAction.action.canceled -= OnSlowTimeCanceled;
-            slowTimeAction.action.Disable();
-        }
+        if (lookAction != null) { lookAction.action.performed -= OnLookPerformed; lookAction.action.canceled -= OnLookCanceled; lookAction.action.Disable(); }
+        if (aimAction != null) { aimAction.action.started -= OnAimStarted; aimAction.action.canceled -= OnAimCanceled; aimAction.action.Disable(); }
+        if (shootAction != null) { shootAction.action.started -= OnShootStarted; shootAction.action.Disable(); }
+        if (zoomAction != null) { zoomAction.action.performed -= OnZoomPerformed; zoomAction.action.Disable(); }
+        if (sprintAction != null) { sprintAction.action.started -= OnSprintStarted; sprintAction.action.canceled -= OnSprintCanceled; sprintAction.action.Disable(); }
+        if (slowTimeAction != null) { slowTimeAction.action.started -= OnSlowTimeStarted; slowTimeAction.action.canceled -= OnSlowTimeCanceled; slowTimeAction.action.Disable(); }
     }
 
     private void Start()
@@ -227,9 +186,7 @@ public class SniperSystem : MonoBehaviour
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        // 🎟️ 3. ENTRADA VIP: Teletransportar cámara y ajustar límites si se compró el pase
         bool isVipActive = BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActiveVipTicket;
-
         activePitchLimit = isVipActive ? vipPitchLimit : standardPitchLimit;
         activeYawLimit = isVipActive ? vipYawLimit : standardYawLimit;
 
@@ -237,7 +194,6 @@ public class SniperSystem : MonoBehaviour
         {
             transform.position = vipCameraTransform.position;
             transform.rotation = vipCameraTransform.rotation;
-            Debug.Log("[SniperSystem] Entrada VIP activa: Cámara posicionada en las gradas VIP y límites ajustados.");
         }
 
         Vector3 initialEuler = transform.eulerAngles;
@@ -260,6 +216,11 @@ public class SniperSystem : MonoBehaviour
         if (isAiming)
         {
             CheckTargetingHorse();
+        }
+        else
+        {
+            ClearHorseIdentifierUI();
+            lockedTargetHorseTransform = null; // Reiniciar lock al dejar de apuntar
         }
 
         if (isShootingOrReloading)
@@ -322,16 +283,10 @@ public class SniperSystem : MonoBehaviour
 
     private void OnSprintStarted(InputAction.CallbackContext ctx)
     {
-        if (isAiming && !breathDepleted)
-        {
-            isHoldingBreath = true;
-        }
+        if (isAiming && !breathDepleted) isHoldingBreath = true;
     }
 
-    private void OnSprintCanceled(InputAction.CallbackContext ctx)
-    {
-        isHoldingBreath = false;
-    }
+    private void OnSprintCanceled(InputAction.CallbackContext ctx) => isHoldingBreath = false;
 
     private void OnSlowTimeStarted(InputAction.CallbackContext ctx)
     {
@@ -342,10 +297,7 @@ public class SniperSystem : MonoBehaviour
         }
     }
 
-    private void OnSlowTimeCanceled(InputAction.CallbackContext ctx)
-    {
-        isUsingMagicClock = false;
-    }
+    private void OnSlowTimeCanceled(InputAction.CallbackContext ctx) => isUsingMagicClock = false;
 
     // ==========================================
     // LÓGICA DE RESPIRACIÓN Y SWAY
@@ -383,11 +335,7 @@ public class SniperSystem : MonoBehaviour
         {
             currentBreath += breathRecoveryRate * Time.deltaTime;
             currentBreath = Mathf.Clamp(currentBreath, 0f, maxBreathTime);
-
-            if (breathDepleted && currentBreath >= maxBreathTime)
-            {
-                breathDepleted = false;
-            }
+            if (breathDepleted && currentBreath >= maxBreathTime) breathDepleted = false;
         }
 
         float targetSwayWeight = (isHoldingBreath && !hasStockMod) ? 0f : 1f;
@@ -399,9 +347,7 @@ public class SniperSystem : MonoBehaviour
     private void UpdateBreathUI()
     {
         if (breathBarImage == null) return;
-
         float fillRatio = currentBreath / maxBreathTime;
-
         RectTransform rect = breathBarImage.rectTransform;
         rect.localScale = new Vector3(fillRatio, rect.localScale.y, rect.localScale.z);
 
@@ -417,21 +363,60 @@ public class SniperSystem : MonoBehaviour
     }
 
     // ==========================================
-    // LÓGICA DE ROTACIÓN, SWAY Y RECOIL
+    // LÓGICA DE ROTACIÓN, AIM BOT SNAP Y RECOIL
     // ==========================================
+
+    public float aimBotBreakThreshold = 3.0f; // Puedes subirlo o bajarlo desde el Inspector
 
     private void HandleRotation()
     {
+        // 🎯 LÓGICA DE Z-TARGETING (AIM BOT)
+        if (hasAimBot && isAiming && lockedTargetHorseTransform != null)
+        {
+            // Si el jugador mueve el ratón superando el umbral, rompemos el bloqueo
+            if (lookInput.sqrMagnitude > aimBotBreakThreshold)
+            {
+                lockedTargetHorseTransform = null;
+            }
+            else
+            {
+                // 1. Posición del centro del caballo
+                Vector3 targetPosition = lockedTargetHorseTransform.position + Vector3.up * 1.5f;
+                Vector3 targetDirection = targetPosition - transform.position;
+
+                if (targetDirection != Vector3.zero)
+                {
+                    // 2. Rotación hacia el caballo
+                    Quaternion targetRotation = Quaternion.LookRotation(targetDirection, Vector3.up);
+                    Vector3 targetEuler = targetRotation.eulerAngles;
+
+                    // 3. Extraemos pitch y yaw del objetivo
+                    float targetPitch = targetEuler.x > 180f ? targetEuler.x - 360f : targetEuler.x;
+                    float targetYaw = targetEuler.y;
+
+                    // 4. Suavizado hacia el objetivo
+                    pitch = Mathf.Lerp(pitch, targetPitch, Time.deltaTime * 15f);
+                    yaw = Mathf.Lerp(yaw, targetYaw, Time.deltaTime * 15f);
+
+                    transform.eulerAngles = new Vector3(pitch, yaw, 0f);
+                    return;
+                }
+            }
+        }
+
+        // --- CONTROL MANUAL Y SWAY (Funcionamiento normal) ---
         yaw += lookInput.x * mouseSensitivity;
-        pitch += lookInput.y * mouseSensitivity;
+
+        // 🔑 CAMBIO AQUÍ: Invertimos el signo de lookInput.y para corregir el eje vertical invertido
+        pitch -= lookInput.y * mouseSensitivity;
 
         pitch = Mathf.Clamp(pitch, initialPitch - activePitchLimit, initialPitch + activePitchLimit);
         yaw = Mathf.Clamp(yaw, initialYaw - activeYawLimit, initialYaw + activeYawLimit);
 
-        float finalPitch = pitch + (swayOffset.x * currentSwayWeight) + currentRecoilOffset;
-        float finalYaw = yaw + (swayOffset.y * currentSwayWeight);
+        float finalPitchVal = pitch + (swayOffset.x * currentSwayWeight) + currentRecoilOffset;
+        float finalYawVal = yaw + (swayOffset.y * currentSwayWeight);
 
-        transform.eulerAngles = new Vector3(finalPitch, finalYaw, 0f);
+        transform.eulerAngles = new Vector3(finalPitchVal, finalYawVal, 0f);
     }
 
     private void HandleSway()
@@ -482,7 +467,7 @@ public class SniperSystem : MonoBehaviour
         currentFOV = baseAimFOV;
 
         if (sniperScopeUI != null) sniperScopeUI.SetActive(true);
-        UpdateCrosshairsUI(true, false); // Activar mira estándar por defecto
+        UpdateCrosshairsUI(true, false);
 
         OnAimStateChanged?.Invoke(true, hasIdentifierMod);
     }
@@ -492,15 +477,17 @@ public class SniperSystem : MonoBehaviour
         isAiming = false;
         isHoldingBreath = false;
         currentFOV = normalFOV;
+        lockedTargetHorseTransform = null;
 
         if (sniperScopeUI != null) sniperScopeUI.SetActive(false);
-        UpdateCrosshairsUI(false, false); // Apagar ambas
+        UpdateCrosshairsUI(false, false);
+        ClearHorseIdentifierUI();
 
         OnAimStateChanged?.Invoke(false, hasIdentifierMod);
     }
 
     // ==========================================
-    // DETECCIÓN DE CABALLO CON LA MIRA
+    // DETECCIÓN DE CABALLO Y GESTIÓN DE AIM BOT
     // ==========================================
 
     private void CheckTargetingHorse()
@@ -509,6 +496,7 @@ public class SniperSystem : MonoBehaviour
 
         Ray ray = mainCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
         bool aimingAtHorse = false;
+        HorseRunner detectedHorse = null;
 
         if (Physics.Raycast(ray, out RaycastHit hit, targetDetectionRange))
         {
@@ -516,11 +504,49 @@ public class SniperSystem : MonoBehaviour
             if (targetHorse != null && !targetHorse.hasFallen && !targetHorse.hasBeenShot && !targetHorse.hasFinished)
             {
                 aimingAtHorse = true;
+                detectedHorse = targetHorse;
+
+                // 🎯 Si el Aim Bot está activo y aún no tenemos un objetivo fijado, clavamos la mira en este caballo
+                if (hasAimBot && lockedTargetHorseTransform == null)
+                {
+                    lockedTargetHorseTransform = targetHorse.transform;
+                }
             }
         }
 
-        // Alternar entre el puntero estándar y el puntero de objetivo fijado
         UpdateCrosshairsUI(true, aimingAtHorse);
+        HandleHorseIdentifierUI(detectedHorse);
+    }
+
+    private void HandleHorseIdentifierUI(HorseRunner targetHorse)
+    {
+        if (currentLookedAtHorse != targetHorse)
+        {
+            ClearHorseIdentifierUI();
+            currentLookedAtHorse = targetHorse;
+        }
+
+        if (currentLookedAtHorse != null && hasIdentifierMod)
+        {
+            HorseIdentifierUI identifierUI = currentLookedAtHorse.GetComponentInChildren<HorseIdentifierUI>(true);
+            if (identifierUI != null)
+            {
+                identifierUI.ShowIdentifier(true, currentLookedAtHorse.currentBet > 0f);
+            }
+        }
+    }
+
+    private void ClearHorseIdentifierUI()
+    {
+        if (currentLookedAtHorse != null)
+        {
+            HorseIdentifierUI identifierUI = currentLookedAtHorse.GetComponentInChildren<HorseIdentifierUI>(true);
+            if (identifierUI != null)
+            {
+                identifierUI.ShowIdentifier(false, false);
+            }
+            currentLookedAtHorse = null;
+        }
     }
 
     private void UpdateCrosshairsUI(bool scopeActive, bool targetingHorse)
@@ -532,19 +558,12 @@ public class SniperSystem : MonoBehaviour
             return;
         }
 
-        if (defaultCrosshairImage != null)
-        {
-            defaultCrosshairImage.SetActive(!targetingHorse);
-        }
-
-        if (targetCrosshairImage != null)
-        {
-            targetCrosshairImage.SetActive(targetingHorse);
-        }
+        if (defaultCrosshairImage != null) defaultCrosshairImage.SetActive(!targetingHorse);
+        if (targetCrosshairImage != null) targetCrosshairImage.SetActive(targetingHorse);
     }
 
     // ==========================================
-    // RUTINA DE DISPARO Y RECARGA SEPARADAS
+    // RUTINA DE DISPARO
     // ==========================================
 
     private IEnumerator ShootRoutine()
@@ -552,35 +571,38 @@ public class SniperSystem : MonoBehaviour
         isShootingOrReloading = true;
         currentAmmo--;
 
-        // ⏱️ Cancelar inmediatamente la habilidad del Reloj Mágico y restaurar velocidad normal
         isUsingMagicClock = false;
         Time.timeScale = 1f;
 
-        // 1. Raycast de impacto
         PerformRaycastShoot();
 
-        // 2. FASE 1: Recoil
         float effectiveRecoil = hasBipodMod ? (baseRecoilAngle * 0.35f) : baseRecoilAngle;
         targetRecoilOffset = -effectiveRecoil;
         isRecounding = true;
 
         yield return new WaitForSeconds(recoilDuration);
 
-        // 3. FASE 2: Fin de la mira y comienzo de la Recarga
-        StopAiming();
-
-        if (playerAnimator != null)
+        if (hasAdvancedSniper)
         {
-            playerAnimator.SetTrigger(reloadAnimTrigger);
+            isShootingOrReloading = false;
         }
-
-        yield return new WaitForSeconds(reloadDuration);
-
-        isShootingOrReloading = false;
-
-        if (aimAction != null && aimAction.action.IsPressed())
+        else
         {
-            StartAiming();
+            StopAiming();
+
+            if (playerAnimator != null)
+            {
+                playerAnimator.SetTrigger(reloadAnimTrigger);
+            }
+
+            yield return new WaitForSeconds(reloadDuration);
+
+            isShootingOrReloading = false;
+
+            if (aimAction != null && aimAction.action.IsPressed())
+            {
+                StartAiming();
+            }
         }
     }
 
@@ -598,7 +620,7 @@ public class SniperSystem : MonoBehaviour
     }
 
     // ==========================================
-    // LÓGICA Y BARRA REGRESIVA DEL RELOJ MÁGICO
+    // LÓGICA DEL RELOJ MÁGICO
     // ==========================================
 
     private void HandleMagicClock()
@@ -617,7 +639,6 @@ public class SniperSystem : MonoBehaviour
             magicClockBarImage.gameObject.SetActive(true);
         }
 
-        // 🎯 REQUISITO: Estar apuntando, mantener Ctrl/habilidad Y NO estar disparando o recargando
         bool inputPressed = slowTimeAction != null && slowTimeAction.action.IsPressed();
         bool canUseClock = isAiming && !isShootingOrReloading && inputPressed && currentMagicClockTime > 0f;
 
@@ -625,13 +646,12 @@ public class SniperSystem : MonoBehaviour
         {
             isUsingMagicClock = true;
             clockWasUsedInRace = true;
-            currentMagicClockTime -= Time.unscaledDeltaTime; // Descuenta tiempo real ignorando timeScale
-            Time.timeScale = 0.3f; // Ralentiza la escena
+            currentMagicClockTime -= Time.unscaledDeltaTime;
+            Time.timeScale = 0.3f;
         }
         else
         {
             isUsingMagicClock = false;
-            // Solo restaurar timeScale si no hay otro sistema modificándolo externamente
             if (!canUseClock && Time.timeScale < 1f)
             {
                 Time.timeScale = 1f;
@@ -645,7 +665,6 @@ public class SniperSystem : MonoBehaviour
             Time.timeScale = 1f;
         }
 
-        // 📊 ACTUALIZAR BARRA HUD
         if (magicClockBarImage != null)
         {
             float fillRatio = currentMagicClockTime / maxMagicClockTime;
@@ -664,7 +683,12 @@ public class SniperSystem : MonoBehaviour
 
     private void OnDestroy()
     {
-        Time.timeScale = 1f; // Garantizar restablecimiento de la velocidad del juego al cambiar de escena
+        Time.timeScale = 1f;
+
+        if (WeaponShopManager.Instance != null)
+        {
+            WeaponShopManager.Instance.SaveAmmoAfterRace(currentAmmo);
+        }
         if (BlackMarketManager.Instance != null)
         {
             BlackMarketManager.Instance.NotifyRaceFinished(clockWasUsedInRace);
