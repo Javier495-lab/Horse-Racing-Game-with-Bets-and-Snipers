@@ -44,6 +44,10 @@ public class SniperSystem : MonoBehaviour
     public float swaySpeed = 2f;
     public float swayDamping = 8f;
 
+    [Header("Ajustes de Modificadores")]
+    [Tooltip("Multiplicador del temblor cuando se tiene el Bípode (0.15 = 15% del sway original)")]
+    public float bipodSwayMultiplier = 0.15f;
+
     [Header("Sistema de Contener la Respiración (Sprint)")]
     public float maxBreathTime = 4f;
     public float breathRecoveryRate = 2f;
@@ -407,7 +411,7 @@ public class SniperSystem : MonoBehaviour
         // --- CONTROL MANUAL Y SWAY (Funcionamiento normal) ---
         yaw += lookInput.x * mouseSensitivity;
 
-        // 🔑 CAMBIO AQUÍ: Invertimos el signo de lookInput.y para corregir el eje vertical invertido
+        // Invertimos el signo de lookInput.y para corregir el eje vertical invertido
         pitch -= lookInput.y * mouseSensitivity;
 
         pitch = Mathf.Clamp(pitch, initialPitch - activePitchLimit, initialPitch + activePitchLimit);
@@ -421,11 +425,15 @@ public class SniperSystem : MonoBehaviour
 
     private void HandleSway()
     {
-        if (isAiming && !hasStockMod)
+        if (isAiming)
         {
             swayTimer += Time.deltaTime * swaySpeed;
-            float offsetX = Mathf.Sin(swayTimer) * swayIntensity;
-            float offsetY = Mathf.Cos(swayTimer * 1.5f) * (swayIntensity * 0.7f);
+
+            // 💡 Ahora lee directamente del campo público del Inspector
+            float currentIntensity = hasBipodMod ? (swayIntensity * bipodSwayMultiplier) : swayIntensity;
+
+            float offsetX = Mathf.Sin(swayTimer) * currentIntensity;
+            float offsetY = Mathf.Cos(swayTimer * 1.5f) * (currentIntensity * 0.7f);
             swayOffset = new Vector2(offsetX, offsetY);
         }
         else
@@ -595,7 +603,9 @@ public class SniperSystem : MonoBehaviour
                 playerAnimator.SetTrigger(reloadAnimTrigger);
             }
 
-            yield return new WaitForSeconds(reloadDuration);
+            // 💡 MODIFICACIÓN STOCK (CULATA): Si tiene el stock mod, la recarga dura exactamente 1 segundo.
+            float currentReloadTime = hasStockMod ? 1.0f : reloadDuration;
+            yield return new WaitForSeconds(currentReloadTime);
 
             isShootingOrReloading = false;
 
