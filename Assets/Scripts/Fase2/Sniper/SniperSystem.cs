@@ -104,6 +104,14 @@ public class SniperSystem : MonoBehaviour
     private bool isUsingMagicClock = false;
     private bool clockWasUsedInRace = false;
 
+    [Header("--- SUPRESIÓN DE SWAY POR MOVIMIENTO (INPUT) ---")]
+    public bool enableInputSwaySuppression = true;
+    [Tooltip("Umbral de movimiento del ratón/joystick a partir del cual el sway se desactiva.")]
+    public float inputSwayThreshold = 0.5f;
+    [Tooltip("Velocidad con la que el sway se desvanece al mover y reaparece al pararse.")]
+    public float inputSwayFadeSpeed = 10f;
+    private float currentInputSwayFactor = 1f;
+
     // Estados internos
     private bool isAiming = false;
     private bool isShootingOrReloading = false;
@@ -161,7 +169,12 @@ public class SniperSystem : MonoBehaviour
         // 🎯 3. AIM BOT (Comprobar si se compró en el mercado negro para esta carrera)
         if (BlackMarketManager.Instance != null)
         {
-            hasAimBot = BlackMarketManager.Instance.GetAimBotOwned(BlackMarketManager.Instance.GetCurrentHouseKey());
+            string currentHouseKey = BlackMarketManager.Instance.GetCurrentHouseKey();
+            hasAimBot = BlackMarketManager.Instance.GetAimBotOwned(currentHouseKey);
+        }
+        else
+        {
+            hasAimBot = false; // Por seguridad, si no hay manager se desactiva
         }
     }
 
@@ -425,15 +438,31 @@ public class SniperSystem : MonoBehaviour
 
     private void HandleSway()
     {
+        // 1. Gestionar la supresión del sway según el input de movimiento
+        float targetInputFactor = 1f;
+        if (enableInputSwaySuppression)
+        {
+            // Si el input de look supera el umbral, bajamos el factor del sway a 0 (lo apagamos)
+            if (lookInput.sqrMagnitude > inputSwayThreshold)
+            {
+                targetInputFactor = 0f;
+            }
+        }
+        // Transición suave para que no sea un corte brusco
+        currentInputSwayFactor = Mathf.MoveTowards(currentInputSwayFactor, targetInputFactor, inputSwayFadeSpeed * Time.deltaTime);
+
         if (isAiming)
         {
             swayTimer += Time.deltaTime * swaySpeed;
 
-            // 💡 Ahora lee directamente del campo público del Inspector
-            float currentIntensity = hasBipodMod ? (swayIntensity * bipodSwayMultiplier) : swayIntensity;
+            // Intensidad base (teniendo en cuenta si hay bípode o no)
+            float baseIntensity = hasBipodMod ? (swayIntensity * bipodSwayMultiplier) : swayIntensity;
 
-            float offsetX = Mathf.Sin(swayTimer) * currentIntensity;
-            float offsetY = Mathf.Cos(swayTimer * 1.5f) * (currentIntensity * 0.7f);
+            // Multiplicamos por el peso de la respiración Y por el factor de input de movimiento
+            float finalIntensity = baseIntensity * currentSwayWeight * currentInputSwayFactor;
+
+            float offsetX = Mathf.Sin(swayTimer) * finalIntensity;
+            float offsetY = Mathf.Cos(swayTimer * 1.5f) * (finalIntensity * 0.7f);
             swayOffset = new Vector2(offsetX, offsetY);
         }
         else
