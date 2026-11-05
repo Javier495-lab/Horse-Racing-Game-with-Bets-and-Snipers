@@ -35,13 +35,15 @@ public class ActiveBetsHUD : MonoBehaviour
             return;
         }
 
-        List<GlobalBettingManager.ActiveBetData> activeBets = GlobalBettingManager.Instance.currentActiveBets;
+        // 🔑 FILTRO CLAVE: Cogemos de la lista global únicamente los caballos que tienen dinero apostado (> 0)
+        List<GlobalBettingManager.ActiveBetData> activeBets = GlobalBettingManager.Instance.currentActiveBets
+            .FindAll(b => b.amount > 0f);
 
         for (int i = 0; i < displaySlots.Count; i++)
         {
             var slot = displaySlots[i];
 
-            // Si hay una apuesta activa para esta ranura
+            // Si hay una apuesta activa filtrada para esta ranura
             if (i < activeBets.Count)
             {
                 var bet = activeBets[i];

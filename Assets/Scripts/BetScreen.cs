@@ -23,11 +23,7 @@ public class BetScreen : MonoBehaviour, IInteractable
 
     public bool isLocked { get; private set; } = false;
 
-    // Variables para guardar la vista original del jugador
-    private Vector3 originalCamPos;
-    private Quaternion originalCamRot;
     private float originalFOV;
-    private Coroutine transitionCoroutine;
 
     private void Awake()
     {
@@ -46,7 +42,6 @@ public class BetScreen : MonoBehaviour, IInteractable
     {
         if (graphicRaycaster != null) graphicRaycaster.enabled = false;
         if (outline != null) outline.enabled = false;
-
 
         if (GlobalBettingManager.Instance != null && !GlobalBettingManager.Instance.allBetScreens.Contains(this))
         {
@@ -99,19 +94,25 @@ public class BetScreen : MonoBehaviour, IInteractable
         if (player != null) player.ToggleControls(false);
         if (outline != null) outline.enabled = false;
 
-        // Guardar la vista original del jugador
+        // Guardar la vista original del jugador e iniciar transición hacia el mostrador
         if (Camera.main != null)
         {
-            originalCamPos = Camera.main.transform.position;
-            originalCamRot = Camera.main.transform.rotation;
             originalFOV = Camera.main.fieldOfView;
 
             if (cameraTargetPose != null)
             {
-                StartTransition(Camera.main.transform, cameraTargetPose.position, cameraTargetPose.rotation, originalFOV, targetFOV, transitionDuration, () =>
-                {
-                    if (graphicRaycaster != null) graphicRaycaster.enabled = true;
-                });
+                StartCoroutine(TransitionToScreen(
+                    Camera.main.transform,
+                    cameraTargetPose.position,
+                    cameraTargetPose.rotation,
+                    originalFOV,
+                    targetFOV,
+                    transitionDuration,
+                    () => {
+                        // Al terminar de llegar al mostrador, activamos el raycaster para poder hacer clic
+                        if (graphicRaycaster != null) graphicRaycaster.enabled = true;
+                    }
+                ));
             }
         }
 
@@ -122,56 +123,77 @@ public class BetScreen : MonoBehaviour, IInteractable
     public void OnReturn()
     {
         if (graphicRaycaster != null) graphicRaycaster.enabled = false;
-        if (bettingCanvas != null) bettingCanvas.SetActive(false);
 
+        // Devolvemos el control al jugador inmediatamente para que pueda moverse durante el damping
         if (player != null) player.ToggleControls(true);
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        if (Camera.main != null)
+        if (Camera.main != null && player != null)
         {
-            StartTransition(Camera.main.transform, originalCamPos, originalCamRot, targetFOV, originalFOV, transitionDuration, null);
+            // 🔑 Usamos la propiedad pública CameraTransform que añadimos al FPSController
+            Transform playerCamTarget = player.cameraTransform;
+            StartCoroutine(DynamicReturnTransition(Camera.main.transform, playerCamTarget, targetFOV, originalFOV, transitionDuration));
         }
     }
 
-    private void StartTransition(Transform camTransform, Vector3 targetPos, Quaternion targetRot, float startFOV, float endFOV, float duration, System.Action onComplete)
+    // Corrutina para ir hacia la pantalla de la apuesta
+    private IEnumerator TransitionToScreen(Transform camTransform, Vector3 targetPos, Quaternion targetRot, float startFOV, float endFOV, float duration, System.Action onComplete)
     {
-        if (transitionCoroutine != null) StopCoroutine(transitionCoroutine);
-        transitionCoroutine = StartCoroutine(TransitionRoutine(camTransform, targetPos, targetRot, startFOV, endFOV, duration, onComplete));
-    }
-
-    private IEnumerator TransitionRoutine(Transform camTransform, Vector3 targetPos, Quaternion targetRot, float startFOV, float endFOV, float duration, System.Action onComplete)
-    {
+        float elapsedTime = 0f;
         Vector3 startPos = camTransform.position;
         Quaternion startRot = camTransform.rotation;
-        Camera cam = camTransform.GetComponent<Camera>();
 
-        float elapsed = 0f;
-        while (elapsed < duration)
+        while (elapsedTime < duration)
         {
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / duration);
-            t = Mathf.SmoothStep(0f, 1f, t);
+            elapsedTime += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsedTime / duration);
+            float smoothT = Mathf.SmoothStep(0f, 1f, t);
 
-            camTransform.position = Vector3.Lerp(startPos, targetPos, t);
-            camTransform.rotation = Quaternion.Slerp(startRot, targetRot, t);
-            if (cam != null)
-            {
-                cam.fieldOfView = Mathf.Lerp(startFOV, endFOV, t);
-            }
+            camTransform.position = Vector3.Lerp(startPos, targetPos, smoothT);
+            camTransform.rotation = Quaternion.Slerp(startRot, targetRot, smoothT);
+            Camera.main.fieldOfView = Mathf.Lerp(startFOV, endFOV, smoothT);
 
             yield return null;
         }
 
         camTransform.position = targetPos;
         camTransform.rotation = targetRot;
-        if (cam != null)
-        {
-            cam.fieldOfView = endFOV;
-        }
+        Camera.main.fieldOfView = endFOV;
 
         onComplete?.Invoke();
+    }
+
+    // Corrutina de retorno dinámico (persiguiendo al jugador si se mueve)
+    private IEnumerator DynamicReturnTransition(Transform camTransform, Transform playerTarget, float startFOV, float endFOV, float duration)
+    {
+        float elapsedTime = 0f;
+
+        Vector3 startPos = camTransform.position;
+        Quaternion startRot = camTransform.rotation;
+
+        while (elapsedTime < duration)
+        {
+            elapsedTime += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsedTime / duration);
+            float smoothT = Mathf.SmoothStep(0f, 1f, t);
+
+            // El destino se actualiza cada frame siguiendo la posición y rotación actual de la cámara del jugador
+            Vector3 dynamicTargetPos = playerTarget.position;
+            Quaternion dynamicTargetRot = playerTarget.rotation;
+
+            camTransform.position = Vector3.Lerp(startPos, dynamicTargetPos, smoothT);
+            camTransform.rotation = Quaternion.Slerp(startRot, dynamicTargetRot, smoothT);
+            Camera.main.fieldOfView = Mathf.Lerp(startFOV, endFOV, smoothT);
+
+            yield return null;
+        }
+
+        // Acople final perfecto en los ojos del jugador
+        camTransform.position = playerTarget.position;
+        camTransform.rotation = playerTarget.rotation;
+        Camera.main.fieldOfView = endFOV;
     }
 
     private void OnDestroy()

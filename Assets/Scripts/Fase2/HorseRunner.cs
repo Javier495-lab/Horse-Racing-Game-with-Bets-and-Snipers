@@ -68,6 +68,10 @@ public class HorseRunner : MonoBehaviour
         horseName = horseData.horseName;
         baseWinProbability = horseData.winProbability;
         winProbabilityModifier = horseData.winProbabilityModifier;
+
+        // 🔑 AÑADIR ESTA LÍNEA para que reciba la caída base de la casa de apuestas
+        baseFallChancePercent = horseData.baseFallProbability;
+
         fallProbabilityModifier = horseData.fallProbabilityModifier;
     }
 
@@ -194,14 +198,26 @@ public class HorseRunner : MonoBehaviour
     {
         if (agent == null || !agent.enabled || waypoints.Count == 0) return;
 
-        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 15f)
+        Transform targetWaypoint = waypoints[currentWaypointIndex];
+        if (targetWaypoint == null) return;
+
+        // 🔑 Posiciones planas (Vector3 para comparar distancias ignorando la altura Y)
+        Vector3 horsePos = new Vector3(transform.position.x, 0f, transform.position.z);
+        Vector3 targetPosFlat = new Vector3(targetWaypoint.position.x, 0f, targetWaypoint.position.z);
+
+        float distanceToWaypoint = Vector3.Distance(horsePos, targetPosFlat);
+
+        // Si el caballo está a menos de 5 metros del waypoint actual
+        if (distanceToWaypoint <= 5f)
         {
+            // ¿Le tocaba caerse en este waypoint exacto?
             if (willFallThisRace && currentWaypointIndex == fallAtWaypointIndex)
             {
                 TriggerFall();
                 return;
             }
 
+            // Si no se cae, avanzamos al siguiente waypoint
             currentWaypointIndex++;
             if (currentWaypointIndex < waypoints.Count)
             {

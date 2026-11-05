@@ -4,15 +4,28 @@ public class WeaponShopManager : MonoBehaviour
 {
     public static WeaponShopManager Instance { get; private set; }
 
-    [Header("Componentes Permanentes (Sniper Base)")]
-    public bool hasZoomMod = false;
-    public bool hasBipodMod = false;   // Pila de libros
-    public bool hasStockMod = false;   // Manos nuevas
-    public bool hasIdentifierMod = false; // Monóculo
+    [Header("Estado General de Armas")]
+    [Tooltip("Indica si el jugador ya ha comprado/desbloqueado el sniper mejorado.")]
+    public bool hasAdvancedSniperUnlocked = false;
 
-    [Header("Munición Actual")]
-    public int currentAmmo = 5;
-    public int maxAmmo = 5;
+    [Tooltip("False = Sniper Base seleccionado | True = Sniper Mejorado seleccionado para la carrera.")]
+    public bool isAdvancedSniperSelected = false;
+
+    [Header("=== SNIPER BASE (Mods y Munición) ===")]
+    public bool baseZoomMod = false;
+    public bool baseBipodMod = false;
+    public bool baseStockMod = false;
+    public bool baseIdentifierMod = false;
+    public int baseCurrentAmmo = 5;
+    public int baseMaxAmmo = 5;
+
+    [Header("=== SNIPER MEJORADO (Mods y Munición) ===")]
+    public bool advZoomMod = false;
+    public bool advBipodMod = false;
+    public bool advStockMod = false;
+    public bool advIdentifierMod = false;
+    public int advCurrentAmmo = 5;
+    public int advMaxAmmo = 6;
 
     private void Awake()
     {
@@ -28,32 +41,47 @@ public class WeaponShopManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Aplica los mods guardados al SniperSystem cuando inicia la carrera.
+    /// Sincroniza los datos con el SniperSystem al iniciar la carrera según el sniper seleccionado.
     /// </summary>
     public void ApplyUpgradesToSniper(SniperSystem sniper)
     {
         if (sniper == null) return;
 
-        sniper.hasZoomMod = hasZoomMod;
-        sniper.hasBipodMod = hasBipodMod;
-        sniper.hasStockMod = hasStockMod;
-        sniper.hasIdentifierMod = hasIdentifierMod;
+        sniper.hasAdvancedSniper = isAdvancedSniperSelected;
 
-        // Cargar las balas guardadas en la tienda
-        sniper.maxAmmo = maxAmmo;
-        sniper.currentAmmo = Mathf.Clamp(currentAmmo, 0, maxAmmo);
+        if (!isAdvancedSniperSelected)
+        {
+            sniper.hasZoomMod = baseZoomMod;
+            sniper.hasBipodMod = baseBipodMod;
+            sniper.hasStockMod = baseStockMod;
+            sniper.hasIdentifierMod = baseIdentifierMod;
+            sniper.maxAmmo = baseMaxAmmo;
+            sniper.currentAmmo = Mathf.Clamp(baseCurrentAmmo, 0, baseMaxAmmo);
+        }
+        else
+        {
+            sniper.hasZoomMod = advZoomMod;
+            sniper.hasBipodMod = advBipodMod;
+            sniper.hasStockMod = advStockMod;
+            sniper.hasIdentifierMod = advIdentifierMod;
+            sniper.maxAmmo = advMaxAmmo;
+            sniper.currentAmmo = Mathf.Clamp(advCurrentAmmo, 0, advMaxAmmo);
+        }
     }
 
-    /// <summary>
-    /// Guarda las balas restantes al terminar la carrera.
-    /// </summary>
     public void SaveAmmoAfterRace(int remainingAmmo)
     {
-        currentAmmo = Mathf.Clamp(remainingAmmo, 0, maxAmmo);
+        if (!isAdvancedSniperSelected)
+            baseCurrentAmmo = Mathf.Clamp(remainingAmmo, 0, baseMaxAmmo);
+        else
+            advCurrentAmmo = Mathf.Clamp(remainingAmmo, 0, advMaxAmmo);
     }
 
-    public void AddAmmo(int amount)
+    public void AddAmmo(int amount, bool toAdvanced)
     {
-        currentAmmo = Mathf.Clamp(currentAmmo + amount, 0, maxAmmo);
+        if (!toAdvanced)
+            baseCurrentAmmo = Mathf.Clamp(baseCurrentAmmo + amount, 0, baseMaxAmmo);
+        else
+            advCurrentAmmo = Mathf.Clamp(advCurrentAmmo + amount, 0, advMaxAmmo);
     }
 }

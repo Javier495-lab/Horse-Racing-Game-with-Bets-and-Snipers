@@ -15,6 +15,12 @@ public class SniperSystem : MonoBehaviour
     public InputActionReference sprintAction;
     public InputActionReference slowTimeAction;
 
+    [Header("Referencias Visuales de los Modelos (Armas)")]
+    [Tooltip("El objeto 3D o GameObject del Sniper Base")]
+    public GameObject baseSniperModel;
+    [Tooltip("El objeto 3D o GameObject del Sniper Mejorado")]
+    public GameObject advancedSniperModel;
+
     [Header("Munición")]
     public int standardMaxAmmo = 5;
     public int advancedMaxAmmo = 6;
@@ -60,11 +66,20 @@ public class SniperSystem : MonoBehaviour
     public Image breathBarImage;
     public float blinkSpeed = 10f;
 
-    [Header("Retroceso (Recoil)")]
+    [Header("Retroceso (Recoil & Easing)")]
     public float baseRecoilAngle = 5f;
-    public float recoilSpeed = 25f;
-    public float recoilRecoverySpeed = 12f;
+    [Tooltip("Suavizado inicial del retroceso (mayor = más rápido al inicio, frena suave al llegar al pico).")]
+    public float recoilEaseSpeed = 20f;
+    [Tooltip("Suavizado de la recuperación hacia la posición original.")]
+    public float recoveryEaseSpeed = 12f;
     public float recoilDuration = 0.25f;
+
+    [Header("Screen Shake Dinámico")]
+    public float screenShakeIntensity = 0.4f;
+    public float screenShakeFrequency = 45f;
+    private Vector2 currentScreenShakeOffset = Vector2.zero;
+
+
 
     [Header("Animación y Recarga")]
     public Animator playerAnimator;
@@ -80,6 +95,12 @@ public class SniperSystem : MonoBehaviour
     [Tooltip("Distancia máxima del raycast para detectar un caballo con la mira")]
     public float targetDetectionRange = 500f;
 
+    [Header("--- TIEMPOS DE DISPARO (SNIPER MEJORADO) ---")]
+    [Tooltip("Tiempo base de espera entre disparos para el sniper mejorado sin stock.")]
+    public float baseAdvancedDelay = 2f;
+    [Tooltip("Tiempo de espera reducido entre disparos cuando se tiene la mejora de Stock.")]
+    public float stockAdvancedDelay = 1f;
+
     [Header("--- MODIFICADORES / DESBLOQUEABLES ---")]
     public bool hasZoomMod = false;
     public float minZoomFOV = 5f;
@@ -94,7 +115,7 @@ public class SniperSystem : MonoBehaviour
     // 🎯 AIM BOT (Mercado Negro)
     [Header("--- AIM BOT ---")]
     public bool hasAimBot = false;
-    private Transform lockedTargetHorseTransform = null; // Caballo al que está fijado el Aim Bot
+    private Transform lockedTargetHorseTransform = null;
 
     [Header("Referencias de Reloj Mágico & VIP (Mercado Negro)")]
     public Transform vipCameraTransform;
@@ -129,10 +150,9 @@ public class SniperSystem : MonoBehaviour
     private float swayTimer = 0f;
     private Vector2 swayOffset = Vector2.zero;
 
-    // Entrada del Input System
     private Vector2 lookInput;
-
     private HorseRunner currentLookedAtHorse = null;
+    private bool canShoot = true;
 
     public delegate void AimStateChanged(bool isAiming, bool hasIdentifierMod);
     public static event AimStateChanged OnAimStateChanged;
@@ -142,7 +162,7 @@ public class SniperSystem : MonoBehaviour
         if (mainCamera == null) mainCamera = Camera.main;
         currentFOV = normalFOV;
 
-        // Sincronizar mejoras y munición desde el WeaponShopManager
+        // 1. Sincronizar mejoras, munición y el booleano hasAdvancedSniper desde el WeaponShopManager
         if (WeaponShopManager.Instance != null)
         {
             WeaponShopManager.Instance.ApplyUpgradesToSniper(this);
@@ -152,7 +172,11 @@ public class SniperSystem : MonoBehaviour
             currentAmmo = maxAmmo;
         }
 
-        // 🪄 1. POLVO MÁGICO
+        // 🔑 2. ACTIVAR EL MODELO 3D CORRECTO SEGÚN EL RIFLE SELECCIONADO
+        if (baseSniperModel != null) baseSniperModel.SetActive(!hasAdvancedSniper);
+        if (advancedSniperModel != null) advancedSniperModel.SetActive(hasAdvancedSniper);
+
+        // 3. POLVO MÁGICO
         if (BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActivePolvoMagico)
         {
             maxBreathTime += BlackMarketManager.Instance.breathTimeIncrease;
@@ -160,13 +184,13 @@ public class SniperSystem : MonoBehaviour
 
         currentBreath = maxBreathTime;
 
-        // ⏱️ 2. RELOJ MÁGICO
+        // 4. RELOJ MÁGICO
         if (BlackMarketManager.Instance != null && BlackMarketManager.Instance.hasActiveMagicClock)
         {
             currentMagicClockTime = maxMagicClockTime;
         }
 
-        // 🎯 3. AIM BOT (Comprobar si se compró en el mercado negro para esta carrera)
+        // 5. AIM BOT
         if (BlackMarketManager.Instance != null)
         {
             string currentHouseKey = BlackMarketManager.Instance.GetCurrentHouseKey();
@@ -174,7 +198,7 @@ public class SniperSystem : MonoBehaviour
         }
         else
         {
-            hasAimBot = false; // Por seguridad, si no hay manager se desactiva
+            hasAimBot = false;
         }
     }
 
@@ -195,8 +219,10 @@ public class SniperSystem : MonoBehaviour
         if (shootAction != null) { shootAction.action.started -= OnShootStarted; shootAction.action.Disable(); }
         if (zoomAction != null) { zoomAction.action.performed -= OnZoomPerformed; zoomAction.action.Disable(); }
         if (sprintAction != null) { sprintAction.action.started -= OnSprintStarted; sprintAction.action.canceled -= OnSprintCanceled; sprintAction.action.Disable(); }
-        if (slowTimeAction != null) { slowTimeAction.action.started -= OnSlowTimeStarted; slowTimeAction.action.canceled -= OnSlowTimeCanceled; slowTimeAction.action.Disable(); }
+        if (slowTimeAction != null) { slowTimeAction.action.started -= OnSlowTimeStarted; slowTimeAction.action.canceled -= OnSlowTimeCanceled; serverActionDisabledCheck(); } // Mantener limpio
     }
+
+    private void serverActionDisabledCheck() { /* Método auxiliar o vacío por seguridad si usabas otra cosa */ }
 
     private void Start()
     {
@@ -237,7 +263,7 @@ public class SniperSystem : MonoBehaviour
         else
         {
             ClearHorseIdentifierUI();
-            lockedTargetHorseTransform = null; // Reiniciar lock al dejar de apuntar
+            lockedTargetHorseTransform = null;
         }
 
         if (isShootingOrReloading)
@@ -254,10 +280,6 @@ public class SniperSystem : MonoBehaviour
         HandleMagicClock();
     }
 
-    // ==========================================
-    // CALLBACKS DE ENTRADA
-    // ==========================================
-
     private void OnLookPerformed(InputAction.CallbackContext ctx) => lookInput = ctx.ReadValue<Vector2>();
     private void OnLookCanceled(InputAction.CallbackContext ctx) => lookInput = Vector2.zero;
 
@@ -273,7 +295,7 @@ public class SniperSystem : MonoBehaviour
 
     private void OnShootStarted(InputAction.CallbackContext ctx)
     {
-        if (isAiming && !isShootingOrReloading)
+        if (isAiming && !isShootingOrReloading && canShoot)
         {
             if (currentAmmo > 0)
             {
@@ -316,10 +338,6 @@ public class SniperSystem : MonoBehaviour
 
     private void OnSlowTimeCanceled(InputAction.CallbackContext ctx) => isUsingMagicClock = false;
 
-    // ==========================================
-    // LÓGICA DE RESPIRACIÓN Y SWAY
-    // ==========================================
-
     private void HandleBreathAndSwayState()
     {
         if (!isAiming)
@@ -355,7 +373,8 @@ public class SniperSystem : MonoBehaviour
             if (breathDepleted && currentBreath >= maxBreathTime) breathDepleted = false;
         }
 
-        float targetSwayWeight = (isHoldingBreath && !hasStockMod) ? 0f : 1f;
+        // 🔑 CORRECCIÓN: Quitamos el filtro de !hasStockMod para que la respiración funcione siempre
+        float targetSwayWeight = isHoldingBreath ? 0f : 1f;
         currentSwayWeight = Mathf.MoveTowards(currentSwayWeight, targetSwayWeight, swayDamping * Time.deltaTime);
 
         UpdateBreathUI();
@@ -379,39 +398,29 @@ public class SniperSystem : MonoBehaviour
         }
     }
 
-    // ==========================================
-    // LÓGICA DE ROTACIÓN, AIM BOT SNAP Y RECOIL
-    // ==========================================
-
-    public float aimBotBreakThreshold = 3.0f; // Puedes subirlo o bajarlo desde el Inspector
+    public float aimBotBreakThreshold = 3.0f;
 
     private void HandleRotation()
     {
-        // 🎯 LÓGICA DE Z-TARGETING (AIM BOT)
         if (hasAimBot && isAiming && lockedTargetHorseTransform != null)
         {
-            // Si el jugador mueve el ratón superando el umbral, rompemos el bloqueo
             if (lookInput.sqrMagnitude > aimBotBreakThreshold)
             {
                 lockedTargetHorseTransform = null;
             }
             else
             {
-                // 1. Posición del centro del caballo
                 Vector3 targetPosition = lockedTargetHorseTransform.position + Vector3.up * 1.5f;
                 Vector3 targetDirection = targetPosition - transform.position;
 
                 if (targetDirection != Vector3.zero)
                 {
-                    // 2. Rotación hacia el caballo
                     Quaternion targetRotation = Quaternion.LookRotation(targetDirection, Vector3.up);
                     Vector3 targetEuler = targetRotation.eulerAngles;
 
-                    // 3. Extraemos pitch y yaw del objetivo
                     float targetPitch = targetEuler.x > 180f ? targetEuler.x - 360f : targetEuler.x;
                     float targetYaw = targetEuler.y;
 
-                    // 4. Suavizado hacia el objetivo
                     pitch = Mathf.Lerp(pitch, targetPitch, Time.deltaTime * 15f);
                     yaw = Mathf.Lerp(yaw, targetYaw, Time.deltaTime * 15f);
 
@@ -421,10 +430,7 @@ public class SniperSystem : MonoBehaviour
             }
         }
 
-        // --- CONTROL MANUAL Y SWAY (Funcionamiento normal) ---
         yaw += lookInput.x * mouseSensitivity;
-
-        // Invertimos el signo de lookInput.y para corregir el eje vertical invertido
         pitch -= lookInput.y * mouseSensitivity;
 
         pitch = Mathf.Clamp(pitch, initialPitch - activePitchLimit, initialPitch + activePitchLimit);
@@ -438,31 +444,27 @@ public class SniperSystem : MonoBehaviour
 
     private void HandleSway()
     {
-        // 1. Gestionar la supresión del sway según el input de movimiento
         float targetInputFactor = 1f;
         if (enableInputSwaySuppression)
         {
-            // Si el input de look supera el umbral, bajamos el factor del sway a 0 (lo apagamos)
             if (lookInput.sqrMagnitude > inputSwayThreshold)
             {
                 targetInputFactor = 0f;
             }
         }
-        // Transición suave para que no sea un corte brusco
         currentInputSwayFactor = Mathf.MoveTowards(currentInputSwayFactor, targetInputFactor, inputSwayFadeSpeed * Time.deltaTime);
 
         if (isAiming)
         {
             swayTimer += Time.deltaTime * swaySpeed;
-
-            // Intensidad base (teniendo en cuenta si hay bípode o no)
             float baseIntensity = hasBipodMod ? (swayIntensity * bipodSwayMultiplier) : swayIntensity;
 
-            // Multiplicamos por el peso de la respiración Y por el factor de input de movimiento
+            // Corregidos los operadores de multiplicación que faltaban aquí:
             float finalIntensity = baseIntensity * currentSwayWeight * currentInputSwayFactor;
 
             float offsetX = Mathf.Sin(swayTimer) * finalIntensity;
             float offsetY = Mathf.Cos(swayTimer * 1.5f) * (finalIntensity * 0.7f);
+
             swayOffset = new Vector2(offsetX, offsetY);
         }
         else
@@ -474,20 +476,37 @@ public class SniperSystem : MonoBehaviour
 
     private void HandleRecoilOnly()
     {
-        float speed = isRecounding ? recoilSpeed : recoilRecoverySpeed;
-        currentRecoilOffset = Mathf.MoveTowards(currentRecoilOffset, targetRecoilOffset, speed * Time.deltaTime);
+        // Velocidad variable con Lerp (suavizado al llegar al pico y al recuperar)
+        float currentSpeed = isRecounding ? recoilEaseSpeed : recoveryEaseSpeed;
+        currentRecoilOffset = Mathf.Lerp(currentRecoilOffset, targetRecoilOffset, currentSpeed * Time.deltaTime);
 
-        if (Mathf.Approximately(currentRecoilOffset, targetRecoilOffset) && targetRecoilOffset != 0f)
+        // Si estamos en fase de retroceso y ya llegamos al pico, cambiamos a la fase de recuperación
+        if (isRecounding && Mathf.Abs(currentRecoilOffset - targetRecoilOffset) < 0.05f)
         {
             targetRecoilOffset = 0f;
             isRecounding = false;
         }
 
-        if (isShootingOrReloading)
+        // 🫨 SCREEN SHAKE DINÁMICO: Funciona únicamente mientras el arma está retrocediendo (isRecounding)
+        if (isShootingOrReloading && isRecounding)
         {
-            float finalPitch = pitch + currentRecoilOffset;
-            transform.eulerAngles = new Vector3(finalPitch, yaw, 0f);
+            float progress = Mathf.Abs(currentRecoilOffset) / Mathf.Max(baseRecoilAngle, 0.01f);
+            float shakeIntensityMultiplier = Mathf.Clamp01(progress);
+
+            float shakeX = Mathf.Sin(Time.time * screenShakeFrequency) * screenShakeIntensity * shakeIntensityMultiplier;
+            float shakeY = Mathf.Cos(Time.time * (screenShakeFrequency * 1.3f)) * screenShakeIntensity * shakeIntensityMultiplier;
+            currentScreenShakeOffset = new Vector2(shakeX, shakeY);
         }
+        else
+        {
+            currentScreenShakeOffset = Vector2.zero;
+        }
+
+        // 🎯 ROTACIÓN FINAL COMBINADA (Pitch y Yaw con Recoil, Screen Shake y Sway)
+        float finalPitch = pitch + currentRecoilOffset + currentScreenShakeOffset.y + swayOffset.y;
+        float finalYaw = yaw + currentScreenShakeOffset.x + swayOffset.x;
+
+        transform.eulerAngles = new Vector3(finalPitch, finalYaw, 0f);
     }
 
     private void ApplyCameraFOV()
@@ -523,10 +542,6 @@ public class SniperSystem : MonoBehaviour
         OnAimStateChanged?.Invoke(false, hasIdentifierMod);
     }
 
-    // ==========================================
-    // DETECCIÓN DE CABALLO Y GESTIÓN DE AIM BOT
-    // ==========================================
-
     private void CheckTargetingHorse()
     {
         if (mainCamera == null) return;
@@ -543,7 +558,6 @@ public class SniperSystem : MonoBehaviour
                 aimingAtHorse = true;
                 detectedHorse = targetHorse;
 
-                // 🎯 Si el Aim Bot está activo y aún no tenemos un objetivo fijado, clavamos la mira en este caballo
                 if (hasAimBot && lockedTargetHorseTransform == null)
                 {
                     lockedTargetHorseTransform = targetHorse.transform;
@@ -599,13 +613,10 @@ public class SniperSystem : MonoBehaviour
         if (targetCrosshairImage != null) targetCrosshairImage.SetActive(targetingHorse);
     }
 
-    // ==========================================
-    // RUTINA DE DISPARO
-    // ==========================================
-
     private IEnumerator ShootRoutine()
     {
-        isShootingOrReloading = true;
+        // Bloqueamos inmediatamente la posibilidad de hacer otro disparo
+        canShoot = false;
         currentAmmo--;
 
         isUsingMagicClock = false;
@@ -619,12 +630,21 @@ public class SniperSystem : MonoBehaviour
 
         yield return new WaitForSeconds(recoilDuration);
 
+        // 🎯 DIFERENCIACIÓN ENTRE RIFLES TRAS EL RECOIL
         if (hasAdvancedSniper)
         {
-            isShootingOrReloading = false;
+            // ⚡ SNIPER MEJORADO: El jugador YA recupera el control total de la cámara aquí,
+            // pero esperamos el delay antes de permitirle disparar otra vez.
+            float currentAdvancedDelay = hasStockMod ? stockAdvancedDelay : baseAdvancedDelay;
+            yield return new WaitForSeconds(currentAdvancedDelay);
+
+            // Permitimos disparar de nuevo
+            canShoot = true;
         }
         else
         {
+            // 🔹 SNIPER BASE: Mantiene la animación de recarga con bloqueo total (como tenías)
+            isShootingOrReloading = true; // Bloquea rotación durante la animación de cerrojo del base
             StopAiming();
 
             if (playerAnimator != null)
@@ -632,11 +652,11 @@ public class SniperSystem : MonoBehaviour
                 playerAnimator.SetTrigger(reloadAnimTrigger);
             }
 
-            // 💡 MODIFICACIÓN STOCK (CULATA): Si tiene el stock mod, la recarga dura exactamente 1 segundo.
             float currentReloadTime = hasStockMod ? 1.0f : reloadDuration;
             yield return new WaitForSeconds(currentReloadTime);
 
             isShootingOrReloading = false;
+            canShoot = true;
 
             if (aimAction != null && aimAction.action.IsPressed())
             {
@@ -657,10 +677,6 @@ public class SniperSystem : MonoBehaviour
             }
         }
     }
-
-    // ==========================================
-    // LÓGICA DEL RELOJ MÁGICO
-    // ==========================================
 
     private void HandleMagicClock()
     {
@@ -691,7 +707,7 @@ public class SniperSystem : MonoBehaviour
         else
         {
             isUsingMagicClock = false;
-            if (!canUseClock && Time.timeScale < 1f)
+            if (!canWithClockCheck() && Time.timeScale < 1f)
             {
                 Time.timeScale = 1f;
             }
@@ -719,6 +735,8 @@ public class SniperSystem : MonoBehaviour
             }
         }
     }
+
+    private bool canWithClockCheck() => false; // Seguridad interna para la línea de escala de tiempo
 
     private void OnDestroy()
     {

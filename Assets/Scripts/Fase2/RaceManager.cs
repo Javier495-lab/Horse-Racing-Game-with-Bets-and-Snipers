@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.AI;
+using static GlobalBettingManager;
 
 public class RaceManager : MonoBehaviour
 {
@@ -59,34 +60,59 @@ public class RaceManager : MonoBehaviour
 
         if (resultsPanel != null) resultsPanel.SetActive(false);
 
-        // 1. Cargar probabilidades e información desde la casa de apuestas activa
-        if (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.currentHouse != null)
+        // 1. Cargar probabilidades e información desde la lista persistente (Sobrevive al cambio de escena)
+        if (GlobalBettingManager.Instance != null && GlobalBettingManager.Instance.currentActiveBets.Count > 0)
         {
-            var house = GlobalBettingManager.Instance.currentHouse;
-            for (int i = 0; i < runners.Count && i < house.horses.Count; i++)
+            var persistentBets = GlobalBettingManager.Instance.currentActiveBets;
+
+            for (int i = 0; i < runners.Count && i < persistentBets.Count; i++)
             {
-                HorseUIElement houseHorseData = house.horses[i];
+                ActiveBetData houseHorseData = persistentBets[i];
                 HorseRunner runner = runners[i];
 
-                // Pasar datos base de la UI al corredor de la pista
-                runner.SetupHorseData(houseHorseData);
+                // Asignar los datos persistidos al corredor de la pista
+                runner.horseName = houseHorseData.horseName;
+                runner.baseWinProbability = houseHorseData.winProbability;
+                runner.baseFallChancePercent = houseHorseData.fallProbability;
+                runner.currentBet = houseHorseData.amount;
 
-                // 💉 2. INYECTAR MODIFICADORES REALES DEL MERCADO NEGRO
+                // 💉 2. INYECTAR MODIFICADORES REALES DEL MERCADO NEGRO (Con búsqueda tolerante a espacios/mayúsculas)
                 if (BlackMarketManager.Instance != null)
                 {
                     string hName = houseHorseData.horseName;
 
-                    // Esteroides: +5% (0.05f) por unidad asignada
-                    int assignedSteroids = BlackMarketManager.Instance.assignedSteroidsToHorses.ContainsKey(hName)
-                        ? BlackMarketManager.Instance.assignedSteroidsToHorses[hName] : 0;
+                    // Buscar esteroides de forma segura ignorando mayúsculas y espacios
+                    int assignedSteroids = 0;
+                    foreach (var kvp in BlackMarketManager.Instance.assignedSteroidsToHorses)
+                    {
+                        if (string.Equals(kvp.Key?.Trim(), hName?.Trim(), System.StringComparison.OrdinalIgnoreCase))
+                        {
+                            assignedSteroids = kvp.Value;
+                            break;
+                        }
+                    }
                     runner.winProbabilityModifier = assignedSteroids * BlackMarketManager.Instance.steroidWinBoost;
 
-                    // Herraduras: -5% por unidad asignada
-                    int assignedHorseshoes = BlackMarketManager.Instance.assignedHorseshoesToHorses.ContainsKey(hName)
-                        ? BlackMarketManager.Instance.assignedHorseshoesToHorses[hName] : 0;
+                    // Buscar herraduras de forma segura ignorando mayúsculas y espacios
+                    int assignedHorseshoes = 0;
+                    foreach (var kvp in BlackMarketManager.Instance.assignedHorseshoesToHorses)
+                    {
+                        if (string.Equals(kvp.Key?.Trim(), hName?.Trim(), System.StringComparison.OrdinalIgnoreCase))
+                        {
+                            assignedHorseshoes = kvp.Value;
+                            break;
+                        }
+                    }
                     runner.fallProbabilityModifier = -(assignedHorseshoes * BlackMarketManager.Instance.horseshoeFallReduction);
+
+                    // 🔍 LOG DE COMPROBACIÓN EN CONSOLA
+                    Debug.Log($"[RaceManager] 🐎 {hName} -> Esteroides: {assignedSteroids} (Mod Win: +{runner.winProbabilityModifier}) | Herraduras: {assignedHorseshoes} (Mod Fall: {runner.fallProbabilityModifier})");
                 }
             }
+        }
+        else
+        {
+            Debug.LogWarning("[RaceManager] No se encontraron datos de apuestas persistentes. Usando valores por defecto de la pista.");
         }
 
         // 3. Precalcular el resultado y puestos de la carrera según probabilidades + ESTEROIDES
@@ -102,7 +128,7 @@ public class RaceManager : MonoBehaviour
             }
 
             runners[i].SetWaypoints(circuitWaypoints);
-            runners[i].ResetRunner(); // Aquí dentro ya leerá el fallProbabilityModifier actualizado
+            runners[i].ResetRunner();
         }
 
         StartCoroutine(StartCountdownRoutine());

@@ -93,28 +93,29 @@ public class GlobalBettingManager : MonoBehaviour
         playerMoney -= totalAmount;
         activeBetAmount = totalAmount;
         currentHouse = house;
-        targetTrackSceneName = house.trackSceneName; // 👈 Guardamos el nombre de la pista de forma persistente
+        targetTrackSceneName = house.trackSceneName;
         hasActiveBet = true;
 
         currentActiveBets.Clear();
 
-        // Copiar los datos de cada apuesta a la estructura persistente
+        // 🔑 CAMBIO AQUÍ: Guardamos TODOS los caballos de la casa, tengan apuesta o no (amount = h.currentBet)
         foreach (var h in house.horses)
         {
+            ActiveBetData bet = new ActiveBetData
+            {
+                horseName = h.horseName,
+                amount = h.currentBet,          // Si es 0 se queda en 0, pero guardamos sus stats
+                mult1st = h.mult1st,
+                mult2nd = h.mult2nd,
+                mult3rd = h.mult3rd,
+                horsePortrait = h.horsePortrait,
+                winProbability = h.winProbability,
+                fallProbability = h.baseFallProbability
+            };
+            currentActiveBets.Add(bet);
+
             if (h.currentBet > 0)
             {
-                ActiveBetData bet = new ActiveBetData
-                {
-                    horseName = h.horseName,
-                    amount = h.currentBet,
-                    mult1st = h.mult1st,
-                    mult2nd = h.mult2nd,
-                    mult3rd = h.mult3rd,
-                    horsePortrait = h.horsePortrait,    
-                    winProbability = h.winProbability,   
-                    fallProbability = h.baseFallProbability  
-                };
-                currentActiveBets.Add(bet);
                 Debug.Log($"[GlobalBettingManager] Apuesta guardada: {h.currentBet}$ a {h.horseName}");
             }
         }

@@ -20,6 +20,10 @@ public class WeaponShopScreen : MonoBehaviour, IInteractable
     [SerializeField] private FPSController player;
     public Button returnButton;
 
+    [Header("Configuración de Tienda Avanzada")]
+    [Tooltip("Marca esto si esta pantalla corresponde a la tienda del sniper mejorado.")]
+    [SerializeField] private bool isAdvancedShop = false;
+
     public bool isLocked { get; private set; } = false;
 
     // Variables para guardar la vista original del jugador
@@ -66,6 +70,13 @@ public class WeaponShopScreen : MonoBehaviour, IInteractable
     public void OnHovered()
     {
         if (isLocked) return;
+
+        // 🔒 Si es la tienda avanzada y el sniper mejorado NO está comprado, no mostramos el outline
+        if (isAdvancedShop && (WeaponShopManager.Instance == null || !WeaponShopManager.Instance.hasAdvancedSniperUnlocked))
+        {
+            return;
+        }
+
         if (outline != null) outline.enabled = true;
     }
 
@@ -78,6 +89,13 @@ public class WeaponShopScreen : MonoBehaviour, IInteractable
     {
         if (isLocked) return;
 
+        // 🔒 Si es la tienda avanzada y el sniper mejorado NO está comprado, bloqueamos la interacción por completo
+        if (isAdvancedShop && (WeaponShopManager.Instance == null || !WeaponShopManager.Instance.hasAdvancedSniperUnlocked))
+        {
+            Debug.Log("[WeaponShopScreen] Acceso denegado: Debes comprar el sniper mejorado primero.");
+            return;
+        }
+
         if (GlobalBettingManager.Instance != null)
         {
             GlobalBettingManager.Instance.DisableAllRaycasters();
@@ -85,6 +103,9 @@ public class WeaponShopScreen : MonoBehaviour, IInteractable
 
         if (player != null) player.ToggleControls(false);
         if (outline != null) outline.enabled = false;
+
+        // Activar el canvas de la tienda si estuviera desactivado
+        if (shopCanvas != null) shopCanvas.SetActive(true);
 
         // Guardar la posición, rotación y FOV actuales de la cámara principal antes de moverla
         if (Camera.main != null)
@@ -96,11 +117,11 @@ public class WeaponShopScreen : MonoBehaviour, IInteractable
             if (cameraTargetPose != null)
             {
                 // Iniciar transición suave hacia la tienda
-                StartTransition(Camera.main.transform, cameraTargetPose.position, cameraTargetPose.rotation, originalFOV, targetFOV, transitionDuration, () =>
+                StartCoroutine(TransitionToScreen(Camera.main.transform, cameraTargetPose.position, cameraTargetPose.rotation, originalFOV, targetFOV, transitionDuration, () =>
                 {
-                    // Al terminar de llegar, activamos la UI de la tienda
+                    // Al terminar de llegar, activamos el raycaster de la tienda
                     if (graphicRaycaster != null) graphicRaycaster.enabled = true;
-                });
+                }));
             }
         }
 
@@ -110,59 +131,75 @@ public class WeaponShopScreen : MonoBehaviour, IInteractable
 
     public void OnReturn()
     {
-        // Ocultar la UI inmediatamente para que no estorbe durante el viaje de vuelta de la cámara
         if (graphicRaycaster != null) graphicRaycaster.enabled = false;
-        if (shopCanvas != null) shopCanvas.SetActive(false);
 
+        // Devolvemos el control al jugador inmediatamente para que pueda moverse durante el damping
         if (player != null) player.ToggleControls(true);
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        // Transición de vuelta a la posición original del jugador
-        if (Camera.main != null)
+        if (Camera.main != null && player != null)
         {
-            StartTransition(Camera.main.transform, originalCamPos, originalCamRot, targetFOV, originalFOV, transitionDuration, null);
+            // 🔑 Usamos la propiedad pública CameraTransform que añadimos al FPSController
+            Transform playerCamTarget = player.cameraTransform;
+            StartCoroutine(DynamicReturnTransition(Camera.main.transform, playerCamTarget, targetFOV, originalFOV, transitionDuration));
         }
     }
 
-    private void StartTransition(Transform camTransform, Vector3 targetPos, Quaternion targetRot, float startFOV, float endFOV, float duration, System.Action onComplete)
+    private IEnumerator TransitionToScreen(Transform camTransform, Vector3 targetPos, Quaternion targetRot, float startFOV, float endFOV, float duration, System.Action onComplete)
     {
-        if (transitionCoroutine != null) StopCoroutine(transitionCoroutine);
-        transitionCoroutine = StartCoroutine(TransitionRoutine(camTransform, targetPos, targetRot, startFOV, endFOV, duration, onComplete));
-    }
-
-    private IEnumerator TransitionRoutine(Transform camTransform, Vector3 targetPos, Quaternion targetRot, float startFOV, float endFOV, float duration, System.Action onComplete)
-    {
+        float elapsedTime = 0f;
         Vector3 startPos = camTransform.position;
         Quaternion startRot = camTransform.rotation;
-        Camera cam = camTransform.GetComponent<Camera>();
 
-        float elapsed = 0f;
-        while (elapsed < duration)
+        while (elapsedTime < duration)
         {
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / duration);
-            // SmoothStep aplica una aceleración y frenado natural (efecto damping)
-            t = Mathf.SmoothStep(0f, 1f, t);
+            elapsedTime += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsedTime / duration);
+            float smoothT = Mathf.SmoothStep(0f, 1f, t);
 
-            camTransform.position = Vector3.Lerp(startPos, targetPos, t);
-            camTransform.rotation = Quaternion.Slerp(startRot, targetRot, t);
-            if (cam != null)
-            {
-                cam.fieldOfView = Mathf.Lerp(startFOV, endFOV, t);
-            }
+            camTransform.position = Vector3.Lerp(startPos, targetPos, smoothT);
+            camTransform.rotation = Quaternion.Slerp(startRot, targetRot, smoothT);
+            Camera.main.fieldOfView = Mathf.Lerp(startFOV, endFOV, smoothT);
 
             yield return null;
         }
 
         camTransform.position = targetPos;
         camTransform.rotation = targetRot;
-        if (cam != null)
-        {
-            cam.fieldOfView = endFOV;
-        }
+        Camera.main.fieldOfView = endFOV;
 
         onComplete?.Invoke();
+    }
+
+    private IEnumerator DynamicReturnTransition(Transform camTransform, Transform playerTarget, float startFOV, float endFOV, float duration)
+    {
+        float elapsedTime = 0f;
+
+        Vector3 startPos = camTransform.position;
+        Quaternion startRot = camTransform.rotation;
+
+        while (elapsedTime < duration)
+        {
+            elapsedTime += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsedTime / duration);
+            float smoothT = Mathf.SmoothStep(0f, 1f, t);
+
+            // El destino se actualiza cada frame siguiendo la posición y rotación actual de la cámara del jugador
+            Vector3 dynamicTargetPos = playerTarget.position;
+            Quaternion dynamicTargetRot = playerTarget.rotation;
+
+            camTransform.position = Vector3.Lerp(startPos, dynamicTargetPos, smoothT);
+            camTransform.rotation = Quaternion.Slerp(startRot, dynamicTargetRot, smoothT);
+            Camera.main.fieldOfView = Mathf.Lerp(startFOV, endFOV, smoothT);
+
+            yield return null;
+        }
+
+        // Acople final perfecto en los ojos del jugador
+        camTransform.position = playerTarget.position;
+        camTransform.rotation = playerTarget.rotation;
+        Camera.main.fieldOfView = endFOV;
     }
 }

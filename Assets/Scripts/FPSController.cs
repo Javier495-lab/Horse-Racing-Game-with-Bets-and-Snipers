@@ -9,7 +9,7 @@ public class FPSController : MonoBehaviour
     [SerializeField] private float gravity = -9.81f;
 
     [Header("Configuración de Cámara y Mirada")]
-    [SerializeField] private Transform cameraTransform;
+    public Transform cameraTransform;
     [SerializeField] private float mouseSensitivity = 0.1f;
     [SerializeField] private float minPitch = -85.0f;
     [SerializeField] private float maxPitch = 85.0f;

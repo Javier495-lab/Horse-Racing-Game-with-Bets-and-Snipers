@@ -2047,6 +2047,8 @@ MonoBehaviour:
   zoomAction: {fileID: 707601806}
   sprintAction: {fileID: 566684061}
   slowTimeAction: {fileID: 174650370}
+  baseSniperModel: {fileID: 0}
+  advancedSniperModel: {fileID: 0}
   standardMaxAmmo: 5
   advancedMaxAmmo: 6
   maxAmmo: 5
@@ -2062,15 +2064,18 @@ MonoBehaviour:
   vipYawLimit: 80
   swayIntensity: 1.5
   swaySpeed: 2
-  swayDamping: 8
+  swayDamping: 1
+  bipodSwayMultiplier: 0.15
   maxBreathTime: 4
   breathRecoveryRate: 4
   breathBarImage: {fileID: 1854026271}
   blinkSpeed: 10
-  baseRecoilAngle: 5
-  recoilSpeed: 25
-  recoilRecoverySpeed: 10
-  recoilDuration: 0.25
+  baseRecoilAngle: 13
+  recoilEaseSpeed: 40
+  recoveryEaseSpeed: 1
+  recoilDuration: 0.8
+  screenShakeIntensity: 81.15
+  screenShakeFrequency: 45
   playerAnimator: {fileID: 0}
   reloadAnimTrigger: Reload
   reloadDuration: 2
@@ -2078,6 +2083,8 @@ MonoBehaviour:
   defaultCrosshairImage: {fileID: 731158672}
   targetCrosshairImage: {fileID: 1487025142}
   targetDetectionRange: 500
+  baseAdvancedDelay: 2
+  stockAdvancedDelay: 1
   hasZoomMod: 0
   minZoomFOV: 5
   maxZoomFOV: 30
@@ -2090,6 +2097,9 @@ MonoBehaviour:
   vipCameraTransform: {fileID: 578626687}
   magicClockBarImage: {fileID: 1657073040}
   maxMagicClockTime: 8
+  enableInputSwaySuppression: 1
+  inputSwayThreshold: 0.5
+  inputSwayFadeSpeed: 10
   aimBotBreakThreshold: 3
 --- !u!4 &340507970
 Transform:
